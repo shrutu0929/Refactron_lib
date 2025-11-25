@@ -29,14 +29,14 @@ def process_user_request(request, user_id, session_id, permissions, settings):
         raise ValueError("User ID required")
     if not session_id:
         return {"error": "No session"}
-    
+
     # Authentication
     if not permissions:
         return {"error": "No permissions"}
     if "admin" not in permissions:
         if "user" not in permissions:
             return {"error": "Unauthorized"}
-    
+
     # Processing
     user_data = {}
     if settings:
@@ -46,25 +46,25 @@ def process_user_request(request, user_id, session_id, permissions, settings):
             user_data["history"] = get_history(user_id)
         if settings.get("include_preferences"):
             user_data["preferences"] = get_preferences(user_id)
-    
+
     # Logging
     if settings.get("debug"):
         log_request(request)
         log_user(user_id)
         log_session(session_id)
-    
+
     # Response building
     response = {"user": user_data}
     if permissions:
         response["permissions"] = permissions
     if session_id:
         response["session"] = session_id
-    
+
     # Caching
     if settings.get("cache"):
         cache_key = f"{user_id}_{session_id}"
         cache.set(cache_key, response)
-    
+
     return response
 """
         issues = analyzer.analyze(Path("test.py"), code)
@@ -137,7 +137,7 @@ class TestRealWorldCodeSmells:
         analyzer = CodeSmellAnalyzer(config)
 
         code = """
-def create_user(first_name, last_name, email, phone, address, city, state, 
+def create_user(first_name, last_name, email, phone, address, city, state,
                 zip_code, country, birth_date, gender, username, password):
     user = {
         "first_name": first_name,
@@ -215,7 +215,7 @@ def process_orders(orders):
             pending_total += order.amount
             pending_count += 1
             pending_items.append(order.items)
-    
+
     # Process completed orders
     completed_total = 0
     completed_count = 0
@@ -225,7 +225,7 @@ def process_orders(orders):
             completed_total += order.amount
             completed_count += 1
             completed_items.append(order.items)
-    
+
     # Process cancelled orders
     cancelled_total = 0
     cancelled_count = 0
@@ -235,7 +235,7 @@ def process_orders(orders):
             cancelled_total += order.amount
             cancelled_count += 1
             cancelled_items.append(order.items)
-    
+
     return {
         "pending": {"total": pending_total, "count": pending_count},
         "completed": {"total": completed_total, "count": completed_count},
@@ -285,10 +285,10 @@ def transform(data):
 def calculate(x):
     if x < 0:
         return None
-    
+
     result = x * 2
     return result
-    
+
     # This code is unreachable
     # result = result * 3
     # return result
@@ -594,18 +594,18 @@ def process_user_request(user_id, session_id, data, options, config, settings):
     # Too many parameters - code smell
     if not user_id:
         return None
-    
+
     # SQL injection vulnerability
     query = f"SELECT * FROM users WHERE id = {user_id}"
     result = db.execute(query)
-    
+
     # Unused variable - dead code
     unused_var = 42
-    
+
     # N+1 query antipattern
     for item in data:
         detail = db.query(f"SELECT * FROM items WHERE id = {item}")
-    
+
     # Complex nested logic - complexity issue
     if options:
         if config:
@@ -613,7 +613,7 @@ def process_user_request(user_id, session_id, data, options, config, settings):
                 for key in settings:
                     if key == "important":
                         process_important(key)
-    
+
     return result
 
 def unused_helper():

@@ -453,7 +453,7 @@ async def process():
 class MyClass:
     name = "test"
     value = 42
-    
+
     def __init__(self):
         self.data = []
 """

@@ -74,7 +74,7 @@ async def long_async():
         # Create complex code with low maintainability
         code = """
 def complex_function(a, b, c, d, e, f, g, h):
-    if a: 
+    if a:
         if b:
             if c:
                 if d:
