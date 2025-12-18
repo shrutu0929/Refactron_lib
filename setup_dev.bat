@@ -93,6 +93,16 @@ if errorlevel 1 (
     echo ✅ CLI working: %VERSION%
 )
 
+REM Run test suite with pytest to verify setup
+echo.
+echo 🧪 Running test suite with pytest...
+pytest
+if errorlevel 1 (
+    echo ⚠️  Warning: Some tests failed. Please review the pytest output above.
+) else (
+    echo ✅ All tests passed successfully.
+)
+
 echo.
 echo ✨ Development environment setup complete!
 echo.
