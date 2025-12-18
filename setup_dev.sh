@@ -109,11 +109,11 @@ fi
 echo ""
 echo "🧪 Running tests to verify setup..."
 if pytest --version &> /dev/null; then
-    pytest tests/ -v --tb=short -x || {
+    if ! pytest tests/ -v --tb=short -x; then
         echo ""
         echo "⚠️  Some tests failed, but setup is complete."
         echo "You can investigate test failures later."
-    }
+    fi
 else
     echo "⚠️  pytest not found. Setup complete, but tests couldn't run."
 fi
