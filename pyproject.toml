@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "refactron"
 version = "1.0.1"
-description = "Intelligent Python code refactoring tool with security analysis, performance optimization, and automated code quality improvements"
+description = "Python code analysis and refactoring tool with security scanning, performance detection, and automated fixes"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
