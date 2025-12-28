@@ -146,7 +146,7 @@ def _print_refactor_messages(summary: dict, preview: bool) -> None:
 
 
 @click.group()
-@click.version_option(version="1.0.0")
+@click.version_option(version="1.0.1")
 def main() -> None:
     """
     Refactron - The Intelligent Code Refactoring Transformer

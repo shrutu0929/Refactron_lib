@@ -7,32 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Pre-commit hooks configuration for automated code quality checks
-- SECURITY.md with comprehensive security policy and vulnerability reporting process
-- CONTRIBUTING_QUICKSTART.md for fast contributor onboarding (5-minute setup)
-- Performance benchmarking suite in benchmarks/ directory
-- Pre-commit GitHub Actions workflow for CI/CD
-- Enhanced README badges (Black, pre-commit, security scanning)
-
-### Changed
-- Formatted 10 files with Black in examples/ and real_world_tests/ directories
-- Updated README with accurate test coverage (84%) and test count (135)
-- Improved contributing documentation with quick start guide
-- Updated CI/CD metrics in README
-
-### Fixed
-- Fixed flake8 violations in simplify_conditionals_refactorer.py
-- Fixed flake8 violations in reduce_parameters_refactorer.py
-- Reduced total flake8 issues from 294 to ~17 (94% improvement)
-- Fixed code formatting issues in examples directory
-
 ### Planned
 - AI-powered pattern recognition
 - VS Code extension
 - PyCharm plugin
 - Advanced custom rule engine
 - Performance profiling
+
+---
+
+## [1.0.1] - 2025-12-28
+
+### Added
+
+#### Analyzer Enhancements (#37)
+- **New Security Patterns**:
+  - SQL parameterization detection (SEC009) - Identifies unsafe SQL string formatting
+  - SSRF (Server-Side Request Forgery) vulnerability detection (SEC010)
+  - Insecure random number generation detection (SEC011)
+  - Weak SSL/TLS configuration detection (SEC012, SEC013)
+  - Cryptographic weaknesses detection (weak hashing algorithms)
+- **Complexity Analyzer Improvements**:
+  - Nested loop depth detection (C003) - Flags deeply nested loops that impact performance
+  - Method call chain complexity detection (C004) - Identifies overly long method chaining
+- **Performance Analyzer** - New analyzer detecting performance antipatterns:
+  - N+1 query detection (P001) - Identifies database queries inside loops
+  - Inefficient list comprehensions (P002, P003) - Detects patterns that can be optimized
+  - Unnecessary iterations (P004) - Finds redundant loops and iterations
+  - Inefficient string concatenation (P005) - Detects string building in loops
+  - Redundant list conversions (P006) - Finds unnecessary list() wrappers
+- **Code Smell Analyzer Enhancements**:
+  - Improved unused import detection (S006) - More accurate analysis of import usage
+  - Repeated code block detection - Identifies duplicate code patterns within functions
+
+#### False Positive Reduction (#39, #40)
+- **Context-Aware Security Analysis** - Adjusts confidence scores based on file context:
+  - Test files get 60% confidence multiplier for certain rules (eval, pickle, random)
+  - Example/demo files get 70% confidence multiplier
+  - Reduces false positives for legitimate test code
+- **Rule Whitelisting** - Configuration-based whitelisting of security rules for specific file patterns
+- **False Positive Tracking System** - `FalsePositiveTracker` class to learn and track known false positives
+- **Confidence Scores** - All security issues now include confidence scores (0.0-1.0) indicating detection certainty
+- **Minimum Confidence Filtering** - Filter out low-confidence issues via configuration
+
+#### Test Coverage Improvements (#47, #48)
+- **Comprehensive Edge Case Tests** - Added extensive edge case coverage for all analyzers
+- **Real-World Test Datasets** - Test suites with real-world problematic code patterns
+- **Integration Tests** - Improved integration test coverage across analyzer modules
+- **Achieved 96.8% test coverage** for analyzer modules
+
+#### Developer Experience
+- Pre-commit hooks configuration for automated code quality checks
+- SECURITY.md with comprehensive security policy and vulnerability reporting process
+- CONTRIBUTING_QUICKSTART.md for fast contributor onboarding (5-minute setup)
+- Performance benchmarking suite in benchmarks/ directory
+- Pre-commit GitHub Actions workflow for CI/CD
+- Enhanced README badges (Black, pre-commit, security scanning)
+- Comprehensive documentation for false positive reduction features
+
+### Changed
+- Formatted 10 files with Black in examples/ and real_world_tests/ directories
+- Updated README with accurate test coverage (84%) and test count (135)
+- Improved contributing documentation with quick start guide
+- Updated CI/CD metrics in README
+- Security analyzer now uses context-aware confidence scoring
+- Enhanced code smell detection accuracy for unused imports
+
+### Fixed
+- Fixed flake8 violations in simplify_conditionals_refactorer.py
+- Fixed flake8 violations in reduce_parameters_refactorer.py
+- Reduced total flake8 issues from 294 to ~17 (94% improvement)
+- Fixed code formatting issues in examples directory
+- Improved security analyzer accuracy by reducing false positives in test files
 
 ---
 
@@ -201,6 +247,8 @@ First production-ready beta release of Refactron!
 
 | Version | Date | Status | Highlights |
 |---------|------|--------|------------|
+| 1.0.1 | 2025-12-28 | **Stable** | Pre-commit hooks, benchmarks, improved documentation |
+| 1.0.0 | 2025-10-27 | **Stable** | Production-ready with auto-fix system |
 | 0.1.0 | 2025-10-25 | **Beta** | First production-ready release |
 | 0.0.1 | 2025-10-23 | Alpha | Initial development |
 
