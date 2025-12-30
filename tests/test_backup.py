@@ -278,6 +278,10 @@ class TestGitIntegration:
         assert GitIntegration._is_valid_git_ref("abc;rm -rf /") is False
         assert GitIntegration._is_valid_git_ref("abc|cat") is False
         assert GitIntegration._is_valid_git_ref("abc$var") is False
+        assert GitIntegration._is_valid_git_ref("../../../etc/passwd") is False
+        assert GitIntegration._is_valid_git_ref(".hidden") is False
+        assert GitIntegration._is_valid_git_ref("path..with..dots") is False
+        assert GitIntegration._is_valid_git_ref("has space") is False
 
 
 class TestGitIntegrationWithRepo:

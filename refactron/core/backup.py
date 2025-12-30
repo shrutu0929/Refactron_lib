@@ -415,10 +415,13 @@ class GitIntegration:
         """Validate that a string is a valid Git reference (commit hash or branch name)."""
         if not ref:
             return False
-        git_ref_pattern = re.compile(r"^[a-fA-F0-9]{7,40}$|^[a-zA-Z0-9._/-]+$")
-        return bool(git_ref_pattern.match(ref)) and not any(
-            char in ref for char in [";", "&", "|", "$", "`", "\n", "\r"]
-        )
+        if ref.startswith(".") or ".." in ref:
+            return False
+        dangerous_chars = [";", "&", "|", "$", "`", "\n", "\r", " ", "\\"]
+        if any(char in ref for char in dangerous_chars):
+            return False
+        git_ref_pattern = re.compile(r"^[a-fA-F0-9]{7,40}$|^[a-zA-Z][a-zA-Z0-9._/-]*$")
+        return bool(git_ref_pattern.match(ref))
 
     def git_rollback_to_commit(self, commit_hash: str) -> bool:
         """
