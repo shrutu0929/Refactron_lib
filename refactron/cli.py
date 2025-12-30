@@ -545,7 +545,9 @@ def rollback(
     sessions = system.list_sessions()
     if not sessions:
         console.print("[yellow]No backup sessions found.[/yellow]")
-        console.print("[dim]💡 Tip: Backups are created automatically when using --apply mode.[/dim]")
+        console.print(
+            "[dim]💡 Tip: Backups are created automatically when using --apply mode.[/dim]"
+        )
         return
 
     if session:
@@ -580,7 +582,9 @@ def rollback(
         if result.get("files_restored"):
             console.print(f"[dim]Files restored: {result['files_restored']}[/dim]")
         if result.get("failed_files"):
-            console.print(f"[yellow]⚠️  Failed to restore: {', '.join(result['failed_files'])}[/yellow]")
+            console.print(
+                f"[yellow]⚠️  Failed to restore: {', '.join(result['failed_files'])}[/yellow]"
+            )
     else:
         console.print(f"\n[red]❌ Rollback failed: {result['message']}[/red]")
         raise SystemExit(1)

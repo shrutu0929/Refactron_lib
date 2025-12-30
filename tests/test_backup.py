@@ -294,18 +294,18 @@ class TestGitIntegrationWithRepo:
         subprocess.run(["git", "init"], cwd=temp, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=temp, capture_output=True, check=True
+            cwd=temp,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
-            ["git", "config", "user.name", "Test"],
-            cwd=temp, capture_output=True, check=True
+            ["git", "config", "user.name", "Test"], cwd=temp, capture_output=True, check=True
         )
         test_file = temp / "test.py"
         test_file.write_text("print('hello')")
         subprocess.run(["git", "add", "."], cwd=temp, capture_output=True, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "Initial commit"],
-            cwd=temp, capture_output=True, check=True
+            ["git", "commit", "-m", "Initial commit"], cwd=temp, capture_output=True, check=True
         )
         yield temp
         if temp.exists():
@@ -348,8 +348,7 @@ class TestGitIntegrationWithRepo:
 
         old_commit = git.get_current_commit()
         new_commit = git.create_pre_refactor_commit(
-            message="test commit",
-            files=[git_repo / "new.py"]
+            message="test commit", files=[git_repo / "new.py"]
         )
 
         assert new_commit is not None
@@ -370,10 +369,7 @@ class TestGitIntegrationWithRepo:
         test_file = git_repo / "test.py"
         test_file.write_text("modified content")
         subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Modify"],
-            cwd=git_repo, capture_output=True
-        )
+        subprocess.run(["git", "commit", "-m", "Modify"], cwd=git_repo, capture_output=True)
 
         result = git.git_rollback_to_commit(original_commit)
 

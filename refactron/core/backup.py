@@ -118,18 +118,22 @@ class BackupManager:
 
         for session in self._index["sessions"]:
             if session["id"] == session_id:
-                session["files"].append({
-                    "original": str(file_path),
-                    "backup": str(backup_path),
-                    "relative_path": str(relative_path),
-                    "size": file_path.stat().st_size,
-                })
+                session["files"].append(
+                    {
+                        "original": str(file_path),
+                        "backup": str(backup_path),
+                        "relative_path": str(relative_path),
+                        "size": file_path.stat().st_size,
+                    }
+                )
                 break
 
         self._save_index()
         return backup_path
 
-    def backup_files(self, file_paths: List[Path], session_id: str) -> Tuple[List[Path], List[Path]]:
+    def backup_files(
+        self, file_paths: List[Path], session_id: str
+    ) -> Tuple[List[Path], List[Path]]:
         """
         Backup multiple files.
 
@@ -230,9 +234,7 @@ class BackupManager:
         if session_dir.exists():
             shutil.rmtree(session_dir)
 
-        self._index["sessions"] = [
-            s for s in self._index["sessions"] if s["id"] != session_id
-        ]
+        self._index["sessions"] = [s for s in self._index["sessions"] if s["id"] != session_id]
         self._save_index()
         return True
 
@@ -549,7 +551,7 @@ class BackupRollbackSystem:
                     f"Restored {files_restored} file(s)"
                     if files_restored > 0
                     else "No files to restore"
-            )
+                )
 
         return result
 
