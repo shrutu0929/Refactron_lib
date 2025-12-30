@@ -8,12 +8,15 @@ Provides functionality to:
 """
 
 import json
-import os
+import logging
+import re
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 class BackupManager:
@@ -46,9 +49,13 @@ class BackupManager:
 
     def _save_index(self) -> None:
         """Save backup index to disk."""
-        self.backup_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.index_file, "w", encoding="utf-8") as f:
-            json.dump(self._index, f, indent=2)
+        try:
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            with open(self.index_file, "w", encoding="utf-8") as f:
+                json.dump(self._index, f, indent=2)
+        except (OSError, PermissionError) as e:
+            logger.error(f"Failed to save backup index: {e}")
+            raise
 
     def create_backup_session(self, description: str = "") -> str:
         """
@@ -122,7 +129,7 @@ class BackupManager:
         self._save_index()
         return backup_path
 
-    def backup_files(self, file_paths: List[Path], session_id: str) -> List[Path]:
+    def backup_files(self, file_paths: List[Path], session_id: str) -> Tuple[List[Path], List[Path]]:
         """
         Backup multiple files.
 
@@ -131,18 +138,20 @@ class BackupManager:
             session_id: Session ID for this backup operation.
 
         Returns:
-            List of backup file paths.
+            Tuple of (successful backup paths, failed file paths).
         """
         backup_paths = []
+        failed_paths = []
         for file_path in file_paths:
             try:
                 backup_path = self.backup_file(file_path, session_id)
                 backup_paths.append(backup_path)
             except FileNotFoundError:
-                continue
-        return backup_paths
+                logger.warning(f"File not found during backup, skipping: {file_path}")
+                failed_paths.append(file_path)
+        return backup_paths, failed_paths
 
-    def rollback_session(self, session_id: Optional[str] = None) -> int:
+    def rollback_session(self, session_id: Optional[str] = None) -> Tuple[int, List[str]]:
         """
         Rollback files from a backup session.
 
@@ -150,10 +159,10 @@ class BackupManager:
             session_id: Session ID to rollback. If None, uses the latest session.
 
         Returns:
-            Number of files restored.
+            Tuple of (number of files restored, list of failed file paths).
         """
         if not self._index["sessions"]:
-            return 0
+            return 0, []
 
         if session_id is None:
             session = self._index["sessions"][-1]
@@ -165,9 +174,10 @@ class BackupManager:
                     break
 
         if session is None:
-            return 0
+            return 0, []
 
         restored_count = 0
+        failed_files = []
         for file_info in session["files"]:
             backup_path = Path(file_info["backup"])
             original_path = Path(file_info["original"])
@@ -176,8 +186,11 @@ class BackupManager:
                 original_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(backup_path, original_path)
                 restored_count += 1
+            else:
+                logger.warning(f"Backup file missing, cannot restore: {backup_path}")
+                failed_files.append(str(original_path))
 
-        return restored_count
+        return restored_count, failed_files
 
     def list_sessions(self) -> List[Dict[str, Any]]:
         """
@@ -347,7 +360,9 @@ class GitIntegration:
 
         Args:
             message: Commit message. Defaults to auto-generated message.
-            files: Specific files to commit. If None, commits all staged changes.
+            files: Specific files to commit. If None, stages and commits all
+                   uncommitted changes (git add -A). Note: This may include
+                   unintended files like temporary files or build artifacts.
 
         Returns:
             Commit hash if successful, None otherwise.
@@ -368,6 +383,10 @@ class GitIntegration:
                         check=True,
                     )
             else:
+                logger.warning(
+                    "No specific files provided; staging all changes (git add -A). "
+                    "This may include unintended files."
+                )
                 subprocess.run(
                     ["git", "add", "-A"],
                     cwd=self.repo_path,
@@ -391,6 +410,16 @@ class GitIntegration:
         except subprocess.CalledProcessError:
             return None
 
+    @staticmethod
+    def _is_valid_git_ref(ref: str) -> bool:
+        """Validate that a string is a valid Git reference (commit hash or branch name)."""
+        if not ref:
+            return False
+        git_ref_pattern = re.compile(r"^[a-fA-F0-9]{7,40}$|^[a-zA-Z0-9._/-]+$")
+        return bool(git_ref_pattern.match(ref)) and not any(
+            char in ref for char in [";", "&", "|", "$", "`", "\n", "\r"]
+        )
+
     def git_rollback_to_commit(self, commit_hash: str) -> bool:
         """
         Rollback to a specific commit (soft reset).
@@ -402,6 +431,10 @@ class GitIntegration:
             True if successful, False otherwise.
         """
         if not self.is_git_repo():
+            return False
+
+        if not self._is_valid_git_ref(commit_hash):
+            logger.error(f"Invalid git reference: {commit_hash}")
             return False
 
         try:
@@ -437,7 +470,7 @@ class BackupRollbackSystem:
         files: List[Path],
         description: str = "refactoring operation",
         create_git_commit: bool = True,
-    ) -> str:
+    ) -> Tuple[str, List[Path]]:
         """
         Prepare for a refactoring operation by creating backups and optionally a Git commit.
 
@@ -447,19 +480,20 @@ class BackupRollbackSystem:
             create_git_commit: Whether to create a Git commit before refactoring.
 
         Returns:
-            Session ID for the backup session.
+            Tuple of (session ID, list of files that failed to backup).
         """
         session_id = self.backup_manager.create_backup_session(description)
 
-        self.backup_manager.backup_files(files, session_id)
+        _, failed_files = self.backup_manager.backup_files(files, session_id)
 
         if create_git_commit and self.git.is_git_repo():
             commit_hash = self.git.create_pre_refactor_commit(
-                message=f"refactron: backup before {description}"
+                message=f"refactron: backup before {description}",
+                files=files,
             )
             self.backup_manager.update_session_git_commit(session_id, commit_hash)
 
-        return session_id
+        return session_id, failed_files
 
     def rollback(
         self,
@@ -480,6 +514,7 @@ class BackupRollbackSystem:
             "success": False,
             "method": "git" if use_git else "backup",
             "files_restored": 0,
+            "failed_files": [],
             "message": "",
         }
 
@@ -498,13 +533,19 @@ class BackupRollbackSystem:
             else:
                 result["message"] = "No Git commit found for session"
         else:
-            files_restored = self.backup_manager.rollback_session(session_id)
+            files_restored, failed_files = self.backup_manager.rollback_session(session_id)
             result["files_restored"] = files_restored
+            result["failed_files"] = failed_files
             result["success"] = files_restored > 0
-            result["message"] = (
-                f"Restored {files_restored} file(s)"
-                if files_restored > 0
-                else "No files to restore"
+            if failed_files:
+                result["message"] = (
+                    f"Restored {files_restored} file(s), {len(failed_files)} file(s) failed"
+                )
+            else:
+                result["message"] = (
+                    f"Restored {files_restored} file(s)"
+                    if files_restored > 0
+                    else "No files to restore"
             )
 
         return result

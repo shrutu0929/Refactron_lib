@@ -261,14 +261,22 @@ def refactor(
                 files = list(target_path.rglob("*.py"))
 
             if files:
-                session_id = backup_system.prepare_for_refactoring(
+                session_id, failed_files = backup_system.prepare_for_refactoring(
                     files=files,
                     description=f"refactoring {target}",
-                    create_git_commit=True,
+                    create_git_commit=backup_system.git.is_git_repo(),
                 )
                 console.print(f"[dim]📦 Backup created: {session_id}[/dim]")
+                if failed_files:
+                    console.print(
+                        f"[yellow]⚠️  {len(failed_files)} file(s) could not be backed up[/yellow]"
+                    )
+        except (OSError, PermissionError) as e:
+            console.print(f"[yellow]⚠️  Backup creation failed (I/O error): {e}[/yellow]")
+            if not click.confirm("Continue without backup?"):
+                raise SystemExit(0)
         except Exception as e:
-            console.print(f"[yellow]⚠️  Backup creation failed: {e}[/yellow]")
+            console.print(f"[yellow]⚠️  Backup creation failed: {type(e).__name__}: {e}[/yellow]")
             if not click.confirm("Continue without backup?"):
                 raise SystemExit(0)
 
@@ -547,14 +555,23 @@ def rollback(
             console.print("[dim]Use 'refactron rollback --list' to see available sessions.[/dim]")
             raise SystemExit(1)
         console.print(f"[dim]Rolling back session: {session}[/dim]")
+        console.print(f"[dim]Files to restore: {len(sess['files'])}[/dim]")
     else:
         latest = sessions[-1]
         console.print(f"[dim]Rolling back latest session: {latest['id']}[/dim]")
+        console.print(f"[dim]Files to restore: {len(latest['files'])}[/dim]")
 
     if use_git:
         console.print("[dim]Using Git rollback...[/dim]")
     else:
         console.print("[dim]Using file backup rollback...[/dim]")
+
+    console.print(
+        "\n[yellow]⚠️  This will overwrite your current files with backup versions.[/yellow]"
+    )
+    if not click.confirm("Are you sure you want to proceed with rollback?"):
+        console.print("[yellow]Rollback cancelled.[/yellow]")
+        return
 
     result = system.rollback(session_id=session, use_git=use_git)
 
@@ -562,6 +579,8 @@ def rollback(
         console.print(f"\n[green]✅ {result['message']}[/green]")
         if result.get("files_restored"):
             console.print(f"[dim]Files restored: {result['files_restored']}[/dim]")
+        if result.get("failed_files"):
+            console.print(f"[yellow]⚠️  Failed to restore: {', '.join(result['failed_files'])}[/yellow]")
     else:
         console.print(f"\n[red]❌ Rollback failed: {result['message']}[/red]")
         raise SystemExit(1)
