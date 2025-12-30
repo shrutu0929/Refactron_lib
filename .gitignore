@@ -130,3 +130,5 @@ dmypy.json
 real_world_tests/results/*.json
 real_world_tests/results/*.md
 !real_world_tests/results/.gitkeep
+.refactron-backup/
+.refactron_backups/

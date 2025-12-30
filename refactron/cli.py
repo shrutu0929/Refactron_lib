@@ -10,6 +10,7 @@ from rich.table import Table
 from refactron import Refactron
 from refactron.autofix.engine import AutoFixEngine
 from refactron.autofix.models import FixRiskLevel
+from refactron.core.backup import BackupRollbackSystem
 from refactron.core.config import RefactronConfig
 
 console = Console()
@@ -242,10 +243,32 @@ def refactor(
     console.print("\n🔧 [bold blue]Refactron Refactoring[/bold blue]\n")
 
     # Setup
-    _validate_path(target)
+    target_path = _validate_path(target)
     cfg = _load_config(config)
     _print_refactor_filters(types)
     _confirm_apply_mode(preview)
+
+    # Create backup before applying changes (only in apply mode)
+    session_id = None
+    if not preview and cfg.backup_enabled:
+        try:
+            backup_system = BackupRollbackSystem(target_path.parent if target_path.is_file() else target_path)
+            if target_path.is_file():
+                files = [target_path]
+            else:
+                files = list(target_path.rglob("*.py"))
+
+            if files:
+                session_id = backup_system.prepare_for_refactoring(
+                    files=files,
+                    description=f"refactoring {target}",
+                    create_git_commit=True,
+                )
+                console.print(f"[dim]📦 Backup created: {session_id}[/dim]")
+        except Exception as e:
+            console.print(f"[yellow]⚠️  Backup creation failed: {e}[/yellow]")
+            if not click.confirm("Continue without backup?"):
+                raise SystemExit(0)
 
     # Run refactoring
     try:
@@ -270,6 +293,9 @@ def refactor(
     if result.operations:
         console.print("[bold]Refactoring Operations:[/bold]\n")
         console.print(result.show_diff())
+
+    if session_id and not preview:
+        console.print(f"\n[dim]💡 Tip: Run 'refactron rollback' to undo these changes[/dim]")
 
 
 @main.command()
@@ -417,6 +443,126 @@ def init() -> None:
 
     console.print(f"✅ Created configuration file: {config_path}")
     console.print("\n[dim]Edit this file to customize Refactron behavior.[/dim]")
+
+
+@main.command()
+@click.option(
+    "--session",
+    "-s",
+    type=str,
+    default=None,
+    help="Specific session ID to rollback (default: latest session)",
+)
+@click.option(
+    "--use-git",
+    is_flag=True,
+    default=False,
+    help="Use Git rollback instead of file backup",
+)
+@click.option(
+    "--list",
+    "list_sessions",
+    is_flag=True,
+    default=False,
+    help="List all backup sessions",
+)
+@click.option(
+    "--clear",
+    is_flag=True,
+    default=False,
+    help="Clear all backup sessions",
+)
+def rollback(
+    session: Optional[str],
+    use_git: bool,
+    list_sessions: bool,
+    clear: bool,
+) -> None:
+    """
+    Rollback refactoring changes to restore original files.
+
+    By default, restores files from the latest backup session.
+    Use --session to specify a specific session ID.
+    Use --use-git to rollback using Git instead of file backups.
+
+    Examples:
+      refactron rollback              # Rollback latest session
+      refactron rollback --list       # List all backup sessions
+      refactron rollback --session session_20240101_120000
+      refactron rollback --use-git    # Use Git rollback
+      refactron rollback --clear      # Clear all backups
+    """
+    console.print("\n🔄 [bold blue]Refactron Rollback[/bold blue]\n")
+
+    system = BackupRollbackSystem()
+
+    if list_sessions:
+        sessions = system.list_sessions()
+        if not sessions:
+            console.print("[yellow]No backup sessions found.[/yellow]")
+            return
+
+        table = Table(title="Backup Sessions", show_header=True, header_style="bold magenta")
+        table.add_column("Session ID", style="cyan")
+        table.add_column("Timestamp", style="green")
+        table.add_column("Files", justify="right")
+        table.add_column("Git Commit", style="dim")
+        table.add_column("Description")
+
+        for sess in sessions:
+            git_commit = sess.get("git_commit", "")
+            if git_commit:
+                git_commit = git_commit[:8] + "..."
+            table.add_row(
+                sess["id"],
+                sess["timestamp"],
+                str(len(sess["files"])),
+                git_commit or "N/A",
+                sess.get("description", "")[:30],
+            )
+
+        console.print(table)
+        return
+
+    if clear:
+        if not click.confirm("Are you sure you want to clear all backup sessions?"):
+            return
+
+        count = system.clear_all()
+        console.print(f"[green]✅ Cleared {count} backup session(s).[/green]")
+        return
+
+    sessions = system.list_sessions()
+    if not sessions:
+        console.print("[yellow]No backup sessions found.[/yellow]")
+        console.print("[dim]💡 Tip: Backups are created automatically when using --apply mode.[/dim]")
+        return
+
+    if session:
+        sess = system.backup_manager.get_session(session)
+        if not sess:
+            console.print(f"[red]❌ Session not found: {session}[/red]")
+            console.print("[dim]Use 'refactron rollback --list' to see available sessions.[/dim]")
+            raise SystemExit(1)
+        console.print(f"[dim]Rolling back session: {session}[/dim]")
+    else:
+        latest = sessions[-1]
+        console.print(f"[dim]Rolling back latest session: {latest['id']}[/dim]")
+
+    if use_git:
+        console.print("[dim]Using Git rollback...[/dim]")
+    else:
+        console.print("[dim]Using file backup rollback...[/dim]")
+
+    result = system.rollback(session_id=session, use_git=use_git)
+
+    if result["success"]:
+        console.print(f"\n[green]✅ {result['message']}[/green]")
+        if result.get("files_restored"):
+            console.print(f"[dim]Files restored: {result['files_restored']}[/dim]")
+    else:
+        console.print(f"\n[red]❌ Rollback failed: {result['message']}[/red]")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
