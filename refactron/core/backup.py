@@ -60,8 +60,9 @@ class BackupManager:
         Returns:
             Session ID for the backup session.
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        session_id = f"session_{timestamp}"
+        now = datetime.now()
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        session_id = f"session_{timestamp}_{now.strftime('%f')}"
         session_dir = self.backup_dir / session_id
 
         session_dir.mkdir(parents=True, exist_ok=True)
