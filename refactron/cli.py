@@ -11,6 +11,7 @@ from rich.table import Table
 from refactron import Refactron
 from refactron.autofix.engine import AutoFixEngine
 from refactron.autofix.models import FixRiskLevel
+from refactron.core.analysis_result import AnalysisResult
 from refactron.core.backup import BackupRollbackSystem
 from refactron.core.config import RefactronConfig
 from refactron.core.exceptions import ConfigError
@@ -101,7 +102,7 @@ def _print_status_messages(summary: dict) -> None:
         )
 
 
-def _print_detailed_issues(result) -> None:
+def _print_detailed_issues(result: AnalysisResult) -> None:
     """Print detailed issues list."""
     console.print("[bold]Detailed Issues:[/bold]\n")
     level_icons = {

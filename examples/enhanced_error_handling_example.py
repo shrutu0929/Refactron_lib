@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def example_1_graceful_degradation():
+def example_1_graceful_degradation() -> None:
     """Example 1: Graceful degradation when files fail."""
     print("\n" + "=" * 80)
     print("Example 1: Graceful Degradation")
@@ -56,13 +56,13 @@ def process_data(data):
             """
 class DataProcessor:
     '''Process data efficiently.'''
-    
+
     def __init__(self, config):
         self.config = config
-    
+
     def process(self, items):
         return [self.transform(item) for item in items]
-    
+
     def transform(self, item):
         return item.upper()
 """
@@ -94,7 +94,7 @@ class DataProcessor:
                     print(f"   💡 Suggestion: {error.recovery_suggestion}")
 
 
-def example_2_config_error_handling():
+def example_2_config_error_handling() -> None:
     """Example 2: Configuration error handling."""
     print("\n" + "=" * 80)
     print("Example 2: Configuration Error Handling")
@@ -138,14 +138,14 @@ enabled_analyzers:
 
     try:
         config = RefactronConfig.from_file(valid_config_path)
-        print(f"✅ Config loaded successfully!")
+        print("✅ Config loaded successfully!")
         print(f"   Max complexity: {config.max_function_complexity}")
         print(f"   Enabled analyzers: {', '.join(config.enabled_analyzers)}")
     finally:
         valid_config_path.unlink()
 
 
-def example_3_custom_exception_handling():
+def example_3_custom_exception_handling() -> None:
     """Example 3: Catching specific exception types."""
     print("\n" + "=" * 80)
     print("Example 3: Custom Exception Handling")
@@ -181,7 +181,7 @@ def broken_function(
             print(f"Unexpected error: {e}")
 
 
-def example_4_detailed_report():
+def example_4_detailed_report() -> None:
     """Example 4: Detailed analysis report with error information."""
     print("\n" + "=" * 80)
     print("Example 4: Detailed Analysis Report")
@@ -226,7 +226,7 @@ def bad_function(a, b, c, d, e, f, g):
         print(result.report(detailed=True))
 
 
-def example_5_best_practices():
+def example_5_best_practices() -> None:
     """Example 5: Best practices for error handling."""
     print("\n" + "=" * 80)
     print("Example 5: Best Practices")
@@ -275,7 +275,7 @@ def example_5_best_practices():
             print("   Review failed files and address issues")
 
 
-def main():
+def main() -> None:
     """Run all examples."""
     print("\n")
     print("=" * 80)

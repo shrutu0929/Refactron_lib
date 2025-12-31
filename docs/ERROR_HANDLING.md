@@ -166,7 +166,7 @@ for error in result.failed_files:
 
 **Problem**: File contains non-UTF-8 characters
 
-**Error Message**: 
+**Error Message**:
 ```
 AnalysisError: Failed to read file due to encoding error
 ```

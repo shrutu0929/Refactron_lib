@@ -2,12 +2,7 @@
 
 from pathlib import Path
 
-from refactron.core.exceptions import (
-    AnalysisError,
-    ConfigError,
-    RefactoringError,
-    RefactronError,
-)
+from refactron.core.exceptions import AnalysisError, ConfigError, RefactoringError, RefactronError
 
 
 class TestRefactronError:
