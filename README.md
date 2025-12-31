@@ -101,7 +101,7 @@ bash setup_dev.sh  # or setup_dev.bat on Windows
 
 ## Security
 
-Report security issues to security@refactron.us.kg. See [SECURITY.md](SECURITY.md) for details.
+Report security issues to security@refactron.dev See [SECURITY.md](SECURITY.md) for details.
 
 ## License
 
