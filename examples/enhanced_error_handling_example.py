@@ -12,7 +12,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from refactron import AnalysisError, ConfigError, Refactron, RefactoringError
+from refactron import AnalysisError, ConfigError, RefactoringError, Refactron
 from refactron.core.config import RefactronConfig
 
 # Enable logging to see error details

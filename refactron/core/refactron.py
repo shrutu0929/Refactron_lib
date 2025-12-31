@@ -206,8 +206,7 @@ class Refactron:
             except Exception as e:
                 # Log analyzer failure but continue with other analyzers
                 logger.warning(
-                    f"Analyzer {analyzer.name} failed for {file_path}: {e}",
-                    exc_info=True
+                    f"Analyzer {analyzer.name} failed for {file_path}: {e}", exc_info=True
                 )
                 # Don't raise - allow other analyzers to run
 
@@ -306,7 +305,7 @@ class Refactron:
                 # Log refactorer failure but continue with other refactorers
                 logger.warning(
                     f"Refactorer {refactorer.__class__.__name__} failed for {file_path}: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
                 # Don't raise - allow other refactorers to run
 

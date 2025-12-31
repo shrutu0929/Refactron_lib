@@ -95,7 +95,7 @@ class AnalysisResult:
         summary = self.summary()
         lines.append(f"📊 Files Found: {summary['total_files']}")
         lines.append(f"✅ Files Analyzed: {summary['files_analyzed']}")
-        if summary['files_failed'] > 0:
+        if summary["files_failed"] > 0:
             lines.append(f"❌ Files Failed: {summary['files_failed']}")
         lines.append(f"⚠️  Total Issues: {summary['total_issues']}")
         lines.append("")

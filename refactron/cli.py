@@ -86,11 +86,13 @@ def _print_status_messages(summary: dict) -> None:
         console.print(
             f"[yellow]⚠️  {summary['files_failed']} file(s) failed analysis and were skipped[/yellow]"
         )
-    
+
     if summary["total_issues"] == 0 and summary.get("files_failed", 0) == 0:
         console.print("[green]✨ Excellent! No issues found.[/green]")
     elif summary["total_issues"] == 0 and summary.get("files_failed", 0) > 0:
-        console.print("[yellow]⚠️  No issues found in analyzed files, but some files failed.[/yellow]")
+        console.print(
+            "[yellow]⚠️  No issues found in analyzed files, but some files failed.[/yellow]"
+        )
     elif summary["critical"] > 0:
         console.print(
             f"[red]⚠️  Found {summary['critical']} critical issue(s) that need immediate "

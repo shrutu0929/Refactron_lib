@@ -120,18 +120,14 @@ class RefactoringError(RefactronError):
         # Provide default recovery suggestion if not specified
         if not recovery_suggestion:
             if "permission" in message.lower():
-                recovery_suggestion = (
-                    "Check file permissions and ensure you have write access"
-                )
+                recovery_suggestion = "Check file permissions and ensure you have write access"
             elif "backup" in message.lower():
                 recovery_suggestion = (
-                    "Ensure sufficient disk space and write permissions "
-                    "for backup directory"
+                    "Ensure sufficient disk space and write permissions " "for backup directory"
                 )
             else:
                 recovery_suggestion = (
-                    "Try running the operation on a single file first "
-                    "to identify the issue"
+                    "Try running the operation on a single file first " "to identify the issue"
                 )
 
         super().__init__(message, file_path, recovery_suggestion)
@@ -176,21 +172,14 @@ class ConfigError(RefactronError):
         if not recovery_suggestion:
             if "not found" in message.lower() or "does not exist" in message.lower():
                 recovery_suggestion = (
-                    "Create a config file using 'refactron init' "
-                    "or use default configuration"
+                    "Create a config file using 'refactron init' " "or use default configuration"
                 )
             elif "yaml" in message.lower() or "syntax" in message.lower():
-                recovery_suggestion = (
-                    "Check the YAML syntax in your configuration file"
-                )
+                recovery_suggestion = "Check the YAML syntax in your configuration file"
             elif config_key:
-                recovery_suggestion = (
-                    f"Check the value for '{config_key}' in your configuration"
-                )
+                recovery_suggestion = f"Check the value for '{config_key}' in your configuration"
             else:
-                recovery_suggestion = (
-                    "Verify your configuration file follows the expected format"
-                )
+                recovery_suggestion = "Verify your configuration file follows the expected format"
 
         super().__init__(message, config_path, recovery_suggestion)
 

@@ -67,10 +67,10 @@ class TestGracefulDegradation:
             invalid_file.write_bytes(b"\xff\xfe\x00invalid")
 
             refactron = Refactron()
-            
+
             # When analyzing a single file, errors should be captured
             result = refactron.analyze(invalid_file)
-            
+
             # Should have 1 failed file
             assert result.files_failed == 1
 
