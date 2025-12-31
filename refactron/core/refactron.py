@@ -126,7 +126,7 @@ class Refactron:
                 result.total_issues += file_metrics.issue_count
             except AnalysisError as e:
                 # Log the error and add to failed files list
-                logger.warning(f"Failed to analyze {file_path}: {e}")
+                logger.debug(f"Failed to analyze {file_path}: {e}")
                 result.failed_files.append(
                     FileAnalysisError(
                         file_path=file_path,
