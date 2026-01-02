@@ -76,19 +76,19 @@ class RefactronConfig:
     )
     security_rule_whitelist: Dict[str, List[str]] = field(default_factory=dict)
     security_min_confidence: float = 0.5  # Minimum confidence to report issues
-    
+
     # Performance optimization settings
     enable_ast_cache: bool = True
     ast_cache_dir: Optional[Path] = None
     max_ast_cache_size_mb: int = 100
-    
+
     enable_incremental_analysis: bool = True
     incremental_state_file: Optional[Path] = None
-    
+
     enable_parallel_processing: bool = True
     max_parallel_workers: Optional[int] = None
     use_multiprocessing: bool = False  # Threading by default (more compatible)
-    
+
     enable_memory_profiling: bool = False
     memory_optimization_threshold_mb: float = 5.0
 
@@ -163,7 +163,9 @@ class RefactronConfig:
             "ast_cache_dir": str(self.ast_cache_dir) if self.ast_cache_dir else None,
             "max_ast_cache_size_mb": self.max_ast_cache_size_mb,
             "enable_incremental_analysis": self.enable_incremental_analysis,
-            "incremental_state_file": str(self.incremental_state_file) if self.incremental_state_file else None,
+            "incremental_state_file": (
+                str(self.incremental_state_file) if self.incremental_state_file else None
+            ),
             "enable_parallel_processing": self.enable_parallel_processing,
             "max_parallel_workers": self.max_parallel_workers,
             "use_multiprocessing": self.use_multiprocessing,

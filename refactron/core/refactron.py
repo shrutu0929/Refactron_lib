@@ -53,29 +53,29 @@ class Refactron:
         self.config = config or RefactronConfig.default()
         self.analyzers: List[BaseAnalyzer] = []
         self.refactorers: List[BaseRefactorer] = []
-        
+
         # Initialize performance optimization components
         self.ast_cache = ASTCache(
             cache_dir=self.config.ast_cache_dir,
             enabled=self.config.enable_ast_cache,
             max_cache_size_mb=self.config.max_ast_cache_size_mb,
         )
-        
+
         self.incremental_tracker = IncrementalAnalysisTracker(
             state_file=self.config.incremental_state_file,
             enabled=self.config.enable_incremental_analysis,
         )
-        
+
         self.parallel_processor = ParallelProcessor(
             max_workers=self.config.max_parallel_workers,
             use_processes=self.config.use_multiprocessing,
             enabled=self.config.enable_parallel_processing,
         )
-        
+
         self.memory_profiler = MemoryProfiler(
             enabled=self.config.enable_memory_profiling,
         )
-        
+
         self._initialize_analyzers()
         self._initialize_refactorers()
 
@@ -137,7 +137,7 @@ class Refactron:
         # Start memory profiling
         if self.memory_profiler.enabled:
             self.memory_profiler.snapshot("analysis_start")
-        
+
         target_path = Path(target)
 
         if not target_path.exists():
@@ -152,10 +152,8 @@ class Refactron:
         if self.incremental_tracker.enabled:
             original_count = len(files)
             files = self.incremental_tracker.get_changed_files(files)
-            logger.info(
-                f"Incremental analysis: analyzing {len(files)} of {original_count} files"
-            )
-        
+            logger.info(f"Incremental analysis: analyzing {len(files)} of {original_count} files")
+
         result = AnalysisResult(total_files=len(files))
 
         # Use parallel processing if enabled and multiple files
@@ -163,16 +161,18 @@ class Refactron:
             logger.info(
                 f"Using parallel processing with {self.parallel_processor.max_workers} workers"
             )
-            
+
             # Create a wrapper function for parallel processing
-            def process_file_wrapper(file_path: Path) -> Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]:
+            def process_file_wrapper(
+                file_path: Path,
+            ) -> Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]:
                 try:
                     file_metrics = self._analyze_file(file_path)
-                    
+
                     # Update incremental tracker
                     if self.incremental_tracker.enabled:
                         self.incremental_tracker.update_file_state(file_path)
-                    
+
                     return file_metrics, None
                 except AnalysisError as e:
                     logger.debug(f"Failed to analyze {file_path}: {e}")
@@ -192,13 +192,13 @@ class Refactron:
                         recovery_suggestion="Check the file for syntax errors or encoding issues",
                     )
                     return None, error
-            
+
             # Process files in parallel
             file_metrics_list, error_list = self.parallel_processor.process_files(
                 files,
                 process_file_wrapper,
             )
-            
+
             result.file_metrics.extend(file_metrics_list)
             result.failed_files.extend(error_list)
             result.total_issues = sum(fm.issue_count for fm in file_metrics_list)
@@ -209,7 +209,7 @@ class Refactron:
                     file_metrics = self._analyze_file(file_path)
                     result.file_metrics.append(file_metrics)
                     result.total_issues += file_metrics.issue_count
-                    
+
                     # Update incremental tracker
                     if self.incremental_tracker.enabled:
                         self.incremental_tracker.update_file_state(file_path)
@@ -225,19 +225,20 @@ class Refactron:
                     )
                 except Exception as e:
                     logger.error(f"Unexpected error analyzing {file_path}: {e}", exc_info=True)
+                    recovery_msg = "Check the file for syntax errors or encoding issues"
                     result.failed_files.append(
                         FileAnalysisError(
                             file_path=file_path,
                             error_message=str(e),
                             error_type=e.__class__.__name__,
-                            recovery_suggestion="Check the file for syntax errors or encoding issues",
+                            recovery_suggestion=recovery_msg,
                         )
                     )
-        
+
         # Save incremental state
         if self.incremental_tracker.enabled:
             self.incremental_tracker.save()
-        
+
         # End memory profiling
         if self.memory_profiler.enabled:
             self.memory_profiler.snapshot("analysis_end")
@@ -445,11 +446,11 @@ class Refactron:
                 return True
 
         return False
-    
+
     def get_performance_stats(self) -> dict:
         """
         Get performance statistics from all optimization components.
-        
+
         Returns:
             Dictionary containing performance statistics.
         """
@@ -459,7 +460,7 @@ class Refactron:
             "parallel_processing": self.parallel_processor.get_config(),
             "memory_profiler": self.memory_profiler.get_stats(),
         }
-    
+
     def clear_caches(self) -> None:
         """Clear all performance-related caches."""
         logger.info("Clearing all caches...")

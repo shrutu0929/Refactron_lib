@@ -17,7 +17,6 @@ from typing import Any, Dict, List
 from refactron import Refactron
 from refactron.core.config import RefactronConfig
 
-
 # Performance tracking file
 BENCHMARK_HISTORY_FILE = Path(__file__).parent / "benchmark_history.json"
 
@@ -94,7 +93,7 @@ def benchmark_with_caching(refactron: Refactron, file_path: Path) -> Dict[str, A
     """Benchmark analysis with caching enabled."""
     # First run to populate cache
     refactron.analyze(file_path)
-    
+
     # Second run should use cache
     return benchmark_operation("analyze_with_cache", lambda: refactron.analyze(file_path))
 
@@ -102,20 +101,20 @@ def benchmark_with_caching(refactron: Refactron, file_path: Path) -> Dict[str, A
 def benchmark_parallel_processing(config: RefactronConfig, files: List[Path]) -> Dict[str, Any]:
     """Benchmark parallel vs sequential processing."""
     results = {}
-    
+
     # Sequential processing
     config_seq = RefactronConfig(
         enabled_analyzers=config.enabled_analyzers,
         enable_parallel_processing=False,
     )
     refactron_seq = Refactron(config_seq)
-    
+
     start = time.time()
     refactron_seq.analyze(files[0].parent)
     sequential_time = time.time() - start
-    
+
     results["sequential_time"] = sequential_time
-    
+
     # Parallel processing
     config_par = RefactronConfig(
         enabled_analyzers=config.enabled_analyzers,
@@ -123,14 +122,14 @@ def benchmark_parallel_processing(config: RefactronConfig, files: List[Path]) ->
         max_parallel_workers=4,
     )
     refactron_par = Refactron(config_par)
-    
+
     start = time.time()
     refactron_par.analyze(files[0].parent)
     parallel_time = time.time() - start
-    
+
     results["parallel_time"] = parallel_time
     results["speedup"] = sequential_time / parallel_time if parallel_time > 0 else 0
-    
+
     return results
 
 
@@ -138,13 +137,13 @@ def benchmark_memory_usage(refactron: Refactron, file_path: Path) -> Dict[str, A
     """Benchmark memory usage during analysis."""
     # Enable memory profiling
     refactron.memory_profiler.enabled = True
-    
+
     refactron.memory_profiler.snapshot("before")
     refactron.analyze(file_path)
     refactron.memory_profiler.snapshot("after")
-    
+
     diff = refactron.memory_profiler.compare("before", "after")
-    
+
     return {
         "name": "memory_usage",
         "rss_mb_diff": diff.get("rss_mb_diff", 0),
@@ -155,26 +154,28 @@ def benchmark_memory_usage(refactron: Refactron, file_path: Path) -> Dict[str, A
 def save_benchmark_results(results: List[Dict[str, Any]]) -> None:
     """Save benchmark results to history file."""
     history = []
-    
+
     if BENCHMARK_HISTORY_FILE.exists():
         try:
-            with open(BENCHMARK_HISTORY_FILE, 'r') as f:
+            with open(BENCHMARK_HISTORY_FILE, "r") as f:
                 history = json.load(f)
         except Exception:
             history = []
-    
+
     # Add current results
-    history.append({
-        "timestamp": datetime.now().isoformat(),
-        "results": results,
-    })
-    
+    history.append(
+        {
+            "timestamp": datetime.now().isoformat(),
+            "results": results,
+        }
+    )
+
     # Keep only last 100 runs
     history = history[-100:]
-    
+
     # Save back
     try:
-        with open(BENCHMARK_HISTORY_FILE, 'w') as f:
+        with open(BENCHMARK_HISTORY_FILE, "w") as f:
             json.dump(history, f, indent=2)
         print(f"\n📊 Results saved to {BENCHMARK_HISTORY_FILE}")
     except Exception as e:
@@ -189,7 +190,7 @@ def print_results(results: List[Dict[str, Any]]) -> None:
 
     for result in results:
         print(f"Operation: {result['name']}")
-        
+
         if "mean" in result:
             print(f"  Mean time:   {result['mean']:.4f}s")
             print(f"  Median time: {result['median']:.4f}s")
@@ -204,7 +205,7 @@ def print_results(results: List[Dict[str, Any]]) -> None:
         elif "rss_mb_diff" in result:
             print(f"  Memory delta (RSS): {result['rss_mb_diff']:.2f} MB")
             print(f"  Memory delta (VMS): {result['vms_mb_diff']:.2f} MB")
-        
+
         print()
 
 
@@ -235,13 +236,13 @@ def main():
             result = benchmark_refactoring(refactron, test_file)
             result["name"] = f"refactor_{size}"
             results.append(result)
-            
+
             # Benchmark caching (only for medium file)
             if size == "medium":
                 result = benchmark_with_caching(refactron, test_file)
                 result["name"] = "analyze_with_cache_medium"
                 results.append(result)
-            
+
             # Benchmark memory usage
             result = benchmark_memory_usage(refactron, test_file)
             result["name"] = f"memory_usage_{size}"
@@ -266,26 +267,26 @@ def main():
 
     # Print results
     print_results(results)
-    
+
     # Print performance statistics
     print("=" * 80)
     print("PERFORMANCE OPTIMIZATION STATISTICS")
     print("=" * 80 + "\n")
-    
+
     perf_stats = refactron.get_performance_stats()
-    
+
     print("AST Cache:")
     for key, value in perf_stats["ast_cache"].items():
         print(f"  {key}: {value}")
-    
+
     print("\nIncremental Analysis:")
     for key, value in perf_stats["incremental_analysis"].items():
         print(f"  {key}: {value}")
-    
+
     print("\nParallel Processing:")
     for key, value in perf_stats["parallel_processing"].items():
         print(f"  {key}: {value}")
-    
+
     print("\nMemory Profiler:")
     for key, value in perf_stats["memory_profiler"].items():
         print(f"  {key}: {value}")
@@ -303,7 +304,7 @@ def main():
     refactor_times = [r["mean"] for r in results if "refactor" in r["name"] and "mean" in r]
     if refactor_times:
         print(f"Average refactoring time: {statistics.mean(refactor_times):.4f}s")
-    
+
     # Save results to history
     save_benchmark_results(results)
 
