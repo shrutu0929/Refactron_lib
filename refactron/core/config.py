@@ -91,6 +91,9 @@ class RefactronConfig:
 
     enable_memory_profiling: bool = False
     memory_optimization_threshold_mb: float = 5.0
+    memory_pressure_threshold_percent: float = 80.0
+    memory_pressure_threshold_available_mb: float = 500.0
+    cache_cleanup_threshold_percent: float = 0.8
 
     @classmethod
     def from_file(cls, config_path: Path) -> "RefactronConfig":
@@ -171,6 +174,9 @@ class RefactronConfig:
             "use_multiprocessing": self.use_multiprocessing,
             "enable_memory_profiling": self.enable_memory_profiling,
             "memory_optimization_threshold_mb": self.memory_optimization_threshold_mb,
+            "memory_pressure_threshold_percent": self.memory_pressure_threshold_percent,
+            "memory_pressure_threshold_available_mb": self.memory_pressure_threshold_available_mb,
+            "cache_cleanup_threshold_percent": self.cache_cleanup_threshold_percent,
         }
 
         try:

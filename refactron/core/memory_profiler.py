@@ -37,14 +37,23 @@ class MemoryProfiler:
     Helps track and optimize memory usage for large codebases.
     """
 
-    def __init__(self, enabled: bool = True):
+    def __init__(
+        self,
+        enabled: bool = True,
+        pressure_threshold_percent: float = 80.0,
+        pressure_threshold_available_mb: float = 500.0,
+    ):
         """
         Initialize the memory profiler.
 
         Args:
             enabled: Whether memory profiling is enabled.
+            pressure_threshold_percent: Percent threshold for high memory pressure.
+            pressure_threshold_available_mb: Available memory threshold in MB.
         """
         self.enabled = enabled
+        self.pressure_threshold_percent = pressure_threshold_percent
+        self.pressure_threshold_available_mb = pressure_threshold_available_mb
         self._snapshots: Dict[str, MemorySnapshot] = {}
 
         # Try to import psutil for accurate memory tracking
@@ -171,18 +180,21 @@ class MemoryProfiler:
 
         return result, diff
 
-    def optimize_for_large_files(self, file_size_mb: float) -> bool:
+    def optimize_for_large_files(
+        self, file_size_mb: float, threshold_mb: Optional[float] = None
+    ) -> bool:
         """
         Determine if special optimization is needed for a large file.
 
         Args:
             file_size_mb: File size in megabytes.
+            threshold_mb: Optional threshold override. If None, uses default of 5.0 MB.
 
         Returns:
             True if optimization is recommended.
         """
-        # Threshold for "large" files
-        large_file_threshold_mb = 5.0
+        # Use provided threshold or default
+        large_file_threshold_mb = threshold_mb if threshold_mb is not None else 5.0
 
         if file_size_mb > large_file_threshold_mb:
             logger.info(f"Large file detected ({file_size_mb:.2f} MB), enabling optimizations")
@@ -202,8 +214,11 @@ class MemoryProfiler:
 
         snapshot = self.get_current_memory()
 
-        # Consider memory pressure high if >80% used or <500MB available
-        high_pressure = snapshot.percent > 80.0 or snapshot.available_mb < 500.0
+        # Consider memory pressure high based on configurable thresholds
+        high_pressure = (
+            snapshot.percent > self.pressure_threshold_percent
+            or snapshot.available_mb < self.pressure_threshold_available_mb
+        )
 
         if high_pressure:
             logger.warning(f"High memory pressure detected: {snapshot}")

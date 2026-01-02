@@ -30,7 +30,7 @@ class ParallelProcessor:
 
         Args:
             max_workers: Maximum number of worker processes/threads.
-                        If None, uses CPU count.
+                        If None, uses CPU count capped at 8 workers to avoid resource exhaustion.
             use_processes: If True, uses multiprocessing; if False, uses threading.
             enabled: Whether parallel processing is enabled.
         """
@@ -170,7 +170,9 @@ class ParallelProcessor:
         """
         Process files in parallel using processes.
 
-        Note: process_func must be picklable (top-level function or callable class).
+        Note: When using this process-based executor (i.e., use_processes=True),
+        process_func must be picklable (top-level function or callable class).
+        This restriction does not apply to the threading-based implementation.
         """
         results: List[FileMetrics] = []
         errors: List[FileAnalysisError] = []

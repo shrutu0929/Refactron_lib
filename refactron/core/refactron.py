@@ -59,6 +59,7 @@ class Refactron:
             cache_dir=self.config.ast_cache_dir,
             enabled=self.config.enable_ast_cache,
             max_cache_size_mb=self.config.max_ast_cache_size_mb,
+            cleanup_threshold_percent=self.config.cache_cleanup_threshold_percent,
         )
 
         self.incremental_tracker = IncrementalAnalysisTracker(
@@ -74,6 +75,8 @@ class Refactron:
 
         self.memory_profiler = MemoryProfiler(
             enabled=self.config.enable_memory_profiling,
+            pressure_threshold_percent=self.config.memory_pressure_threshold_percent,
+            pressure_threshold_available_mb=self.config.memory_pressure_threshold_available_mb,
         )
 
         self._initialize_analyzers()

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -13,6 +14,7 @@ class IncrementalAnalysisTracker:
     Track file changes to enable incremental analysis.
 
     Only analyzes files that have changed since the last run.
+    Thread-safe for concurrent updates.
     """
 
     def __init__(
@@ -38,6 +40,9 @@ class IncrementalAnalysisTracker:
 
         # State tracking: file_path -> (mtime, size, hash)
         self._state: Dict[str, Dict[str, float]] = {}
+
+        # Thread lock for safe concurrent access
+        self._lock = threading.Lock()
 
         if self.enabled:
             self._load_state()
@@ -152,10 +157,11 @@ class IncrementalAnalysisTracker:
 
         try:
             stat = file_path.stat()
-            self._state[file_path_str] = {
-                "mtime": stat.st_mtime,
-                "size": stat.st_size,
-            }
+            with self._lock:
+                self._state[file_path_str] = {
+                    "mtime": stat.st_mtime,
+                    "size": stat.st_size,
+                }
         except Exception as e:
             logger.warning(f"Failed to update state for {file_path}: {e}")
 
@@ -170,9 +176,10 @@ class IncrementalAnalysisTracker:
             return
 
         file_path_str = str(file_path.absolute())
-        if file_path_str in self._state:
-            del self._state[file_path_str]
-            logger.debug(f"Removed file from state: {file_path}")
+        with self._lock:
+            if file_path_str in self._state:
+                del self._state[file_path_str]
+                logger.debug(f"Removed file from state: {file_path}")
 
     def cleanup_missing_files(self, valid_file_paths: Set[Path]) -> None:
         """
@@ -186,14 +193,15 @@ class IncrementalAnalysisTracker:
 
         valid_paths_str = {str(p.absolute()) for p in valid_file_paths}
 
-        # Find files in state that are no longer valid
-        to_remove = [fp for fp in self._state.keys() if fp not in valid_paths_str]
+        with self._lock:
+            # Find files in state that are no longer valid
+            to_remove = [fp for fp in self._state.keys() if fp not in valid_paths_str]
 
-        for file_path_str in to_remove:
-            del self._state[file_path_str]
+            for file_path_str in to_remove:
+                del self._state[file_path_str]
 
-        if to_remove:
-            logger.info(f"Cleaned up {len(to_remove)} files from incremental state")
+            if to_remove:
+                logger.info(f"Cleaned up {len(to_remove)} files from incremental state")
 
     def save(self) -> None:
         """Save the current state to disk."""
@@ -201,7 +209,8 @@ class IncrementalAnalysisTracker:
 
     def clear(self) -> None:
         """Clear all state data."""
-        self._state.clear()
+        with self._lock:
+            self._state.clear()
 
         if self.state_file.exists():
             try:

@@ -19,7 +19,11 @@ class ASTCache:
     """
 
     def __init__(
-        self, cache_dir: Optional[Path] = None, enabled: bool = True, max_cache_size_mb: int = 100
+        self,
+        cache_dir: Optional[Path] = None,
+        enabled: bool = True,
+        max_cache_size_mb: int = 100,
+        cleanup_threshold_percent: float = 0.8,
     ):
         """
         Initialize the AST cache.
@@ -28,9 +32,11 @@ class ASTCache:
             cache_dir: Directory to store cache files. If None, uses temporary directory.
             enabled: Whether caching is enabled.
             max_cache_size_mb: Maximum cache size in megabytes.
+            cleanup_threshold_percent: Cleanup to this percentage of max when limit exceeded.
         """
         self.enabled = enabled
         self.max_cache_size_mb = max_cache_size_mb
+        self.cleanup_threshold_percent = cleanup_threshold_percent
 
         if cache_dir is None:
             import tempfile
@@ -119,8 +125,10 @@ class ASTCache:
                 # If cache is corrupted, remove it
                 try:
                     cache_path.unlink()
-                except Exception:
-                    pass
+                except Exception as cleanup_error:
+                    logger.debug(
+                        f"Failed to delete corrupted cache file {cache_path}: {cleanup_error}"
+                    )
 
         self.stats["misses"] += 1
         return None
@@ -186,7 +194,8 @@ class ASTCache:
 
                 # Remove oldest files until we're under the limit
                 for cache_file in cache_files:
-                    if total_size_bytes <= max_size_bytes * 0.8:  # Clean to 80% of limit
+                    target_size = max_size_bytes * self.cleanup_threshold_percent
+                    if total_size_bytes <= target_size:
                         break
 
                     file_size = cache_file.stat().st_size
@@ -236,8 +245,9 @@ class ASTCache:
                 cache_files = list(self.cache_dir.glob("*.cache"))
                 cache_file_count = len(cache_files)
                 cache_size_bytes = sum(f.stat().st_size for f in cache_files)
-            except Exception:
-                pass
+            except Exception as e:
+                # Best-effort stats: log and continue if we can't inspect cache files
+                logger.debug(f"Failed to compute AST cache size or file count: {e}")
 
         return {
             "enabled": self.enabled,

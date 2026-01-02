@@ -7,6 +7,7 @@ to help identify bottlenecks and track performance over time.
 """
 
 import json
+import logging
 import statistics
 import tempfile
 import time
@@ -16,6 +17,9 @@ from typing import Any, Dict, List
 
 from refactron import Refactron
 from refactron.core.config import RefactronConfig
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Performance tracking file
 BENCHMARK_HISTORY_FILE = Path(__file__).parent / "benchmark_history.json"
@@ -157,7 +161,7 @@ def save_benchmark_results(results: List[Dict[str, Any]]) -> None:
 
     if BENCHMARK_HISTORY_FILE.exists():
         try:
-            with open(BENCHMARK_HISTORY_FILE, "r") as f:
+            with open(BENCHMARK_HISTORY_FILE, "r", encoding="utf-8") as f:
                 history = json.load(f)
         except Exception:
             history = []
@@ -175,7 +179,7 @@ def save_benchmark_results(results: List[Dict[str, Any]]) -> None:
 
     # Save back
     try:
-        with open(BENCHMARK_HISTORY_FILE, "w") as f:
+        with open(BENCHMARK_HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2)
         print(f"\n📊 Results saved to {BENCHMARK_HISTORY_FILE}")
     except Exception as e:
@@ -262,8 +266,9 @@ def main():
     for test_file in test_files:
         try:
             test_file.unlink()
-        except Exception:
-            pass
+        except Exception as e:
+            # Best-effort cleanup: log and continue if cleanup fails
+            logger.debug(f"Failed to delete test file {test_file}: {e}")
 
     # Print results
     print_results(results)
