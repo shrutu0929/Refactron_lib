@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -54,7 +54,7 @@ class TelemetryCollector:
             self.telemetry_file = telemetry_file
 
         self.session_id = str(uuid.uuid4())
-        self.events: list[TelemetryEvent] = []
+        self.events: List[TelemetryEvent] = []
 
     def _generate_anonymous_id(self) -> str:
         """Generate an anonymous identifier for this installation.
@@ -103,7 +103,7 @@ class TelemetryCollector:
         files_analyzed: int,
         total_time_ms: float,
         issues_found: int,
-        analyzers_used: list[str],
+        analyzers_used: List[str],
     ) -> None:
         """Record an analysis completion event.
 

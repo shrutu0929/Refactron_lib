@@ -6,7 +6,7 @@ Refactron's performance and usage in production environments.
 
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Optional
+from typing import Any, Optional
 
 from refactron.core.metrics import get_metrics_collector
 
@@ -157,7 +157,7 @@ class MetricsHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"Not Found")
 
-    def log_message(self, format: str, *args: any) -> None:
+    def log_message(self, format: str, *args: Any) -> None:
         """Suppress default logging."""
         pass
 

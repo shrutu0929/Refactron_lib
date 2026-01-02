@@ -60,7 +60,7 @@ class Refactron:
         self.refactorers: List[BaseRefactorer] = []
 
         # Initialize structured logging
-        if self.config.log_level or self.config.log_format:
+        if self.config.log_level is not None or self.config.log_format is not None:
             self.structured_logger = setup_logging(
                 level=self.config.log_level,
                 log_file=self.config.log_file,
@@ -402,9 +402,10 @@ class Refactron:
                 # Track analyzer hits for each issue
                 if self.metrics_collector:
                     for issue in issues:
+                        issue_type = getattr(issue, 'category', 'unknown')
                         self.metrics_collector.record_analyzer_hit(
                             analyzer_name=analyzer.name,
-                            issue_type=issue.category if hasattr(issue, 'category') else 'unknown'
+                            issue_type=issue_type
                         )
             except Exception as e:
                 # Log analyzer failure but continue with other analyzers
