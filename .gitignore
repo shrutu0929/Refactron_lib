@@ -132,3 +132,8 @@ real_world_tests/results/*.md
 !real_world_tests/results/.gitkeep
 .refactron-backup/
 .refactron_backups/
+
+# Performance optimization artifacts
+benchmarks/benchmark_history.json
+refactron_ast_cache/
+refactron_incremental_state.json
