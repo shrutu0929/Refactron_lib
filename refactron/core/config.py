@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -77,6 +77,24 @@ class RefactronConfig:
     security_rule_whitelist: Dict[str, List[str]] = field(default_factory=dict)
     security_min_confidence: float = 0.5  # Minimum confidence to report issues
 
+    # Performance optimization settings
+    enable_ast_cache: bool = True
+    ast_cache_dir: Optional[Path] = None
+    max_ast_cache_size_mb: int = 100
+
+    enable_incremental_analysis: bool = True
+    incremental_state_file: Optional[Path] = None
+
+    enable_parallel_processing: bool = True
+    max_parallel_workers: Optional[int] = None
+    use_multiprocessing: bool = False  # Threading by default (more compatible)
+
+    enable_memory_profiling: bool = False
+    memory_optimization_threshold_mb: float = 5.0
+    memory_pressure_threshold_percent: float = 80.0
+    memory_pressure_threshold_available_mb: float = 500.0
+    cache_cleanup_threshold_percent: float = 0.8
+
     @classmethod
     def from_file(cls, config_path: Path) -> "RefactronConfig":
         """Load configuration from a YAML file.
@@ -144,6 +162,21 @@ class RefactronConfig:
             "security_ignore_patterns": self.security_ignore_patterns,
             "security_rule_whitelist": self.security_rule_whitelist,
             "security_min_confidence": self.security_min_confidence,
+            "enable_ast_cache": self.enable_ast_cache,
+            "ast_cache_dir": str(self.ast_cache_dir) if self.ast_cache_dir else None,
+            "max_ast_cache_size_mb": self.max_ast_cache_size_mb,
+            "enable_incremental_analysis": self.enable_incremental_analysis,
+            "incremental_state_file": (
+                str(self.incremental_state_file) if self.incremental_state_file else None
+            ),
+            "enable_parallel_processing": self.enable_parallel_processing,
+            "max_parallel_workers": self.max_parallel_workers,
+            "use_multiprocessing": self.use_multiprocessing,
+            "enable_memory_profiling": self.enable_memory_profiling,
+            "memory_optimization_threshold_mb": self.memory_optimization_threshold_mb,
+            "memory_pressure_threshold_percent": self.memory_pressure_threshold_percent,
+            "memory_pressure_threshold_available_mb": self.memory_pressure_threshold_available_mb,
+            "cache_cleanup_threshold_percent": self.cache_cleanup_threshold_percent,
         }
 
         try:
