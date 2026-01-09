@@ -23,7 +23,9 @@ class FileMetric:
     lines_of_code: int
     issues_found: int
     analyzers_run: List[str] = field(default_factory=list)
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
     success: bool = True
     error_message: Optional[str] = None
 
@@ -37,7 +39,9 @@ class RefactoringMetric:
     execution_time_ms: float
     success: bool
     risk_level: str
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
     error_message: Optional[str] = None
 
 
@@ -47,22 +51,22 @@ class MetricsCollector:
     def __init__(self) -> None:
         """Initialize metrics collector."""
         self._lock = Lock()
-        
+
         # Analysis metrics
         self.file_metrics: List[FileMetric] = []
         self.analysis_start_time: Optional[float] = None
         self.analysis_end_time: Optional[float] = None
-        
+
         # Refactoring metrics
         self.refactoring_metrics: List[RefactoringMetric] = []
         self.refactoring_start_time: Optional[float] = None
         self.refactoring_end_time: Optional[float] = None
-        
+
         # Rule hit counts
         self.analyzer_hits: Counter = Counter()
         self.refactorer_hits: Counter = Counter()
         self.issue_type_counts: Counter = Counter()
-        
+
         # Summary statistics
         self.total_files_analyzed: int = 0
         self.total_files_failed: int = 0
@@ -112,7 +116,7 @@ class MetricsCollector:
                 error_message=error_message,
             )
             self.file_metrics.append(metric)
-            
+
             self.total_files_analyzed += 1
             if not success:
                 self.total_files_failed += 1
@@ -172,7 +176,7 @@ class MetricsCollector:
                 error_message=error_message,
             )
             self.refactoring_metrics.append(metric)
-            
+
             if success:
                 self.total_refactorings_applied += 1
                 self.refactorer_hits[operation_type] += 1
@@ -271,12 +275,12 @@ class MetricsCollector:
             self.analyzer_hits.clear()
             self.refactorer_hits.clear()
             self.issue_type_counts.clear()
-            
+
             self.analysis_start_time = None
             self.analysis_end_time = None
             self.refactoring_start_time = None
             self.refactoring_end_time = None
-            
+
             self.total_files_analyzed = 0
             self.total_files_failed = 0
             self.total_issues_found = 0
@@ -304,7 +308,6 @@ def get_metrics_collector() -> MetricsCollector:
 
 def reset_metrics_collector() -> None:
     """Reset the global metrics collector."""
-    global _global_metrics_collector
     with _collector_lock:
         if _global_metrics_collector is not None:
             _global_metrics_collector.reset()

@@ -291,7 +291,7 @@ class Refactron:
         # End metrics collection
         if self.metrics_collector:
             self.metrics_collector.end_analysis()
-            
+
             # Record telemetry event
             if self.telemetry_collector:
                 analyzer_names = [a.__class__.__name__ for a in self.analyzers]
@@ -326,7 +326,7 @@ class Refactron:
         """
         # Track analysis time
         start_time = time.time()
-        
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 source_code = f.read()
@@ -397,15 +397,14 @@ class Refactron:
                 issues = analyzer.analyze(file_path, source_code)
                 metrics.issues.extend(issues)
                 analyzers_run.append(analyzer.name)
-                
+
                 # Track analyzer hits for each issue
                 # Note: Issues are expected to have a 'category' attribute for type tracking
                 if self.metrics_collector:
                     for issue in issues:
-                        issue_type = getattr(issue, 'category', 'unknown')
+                        issue_type = getattr(issue, "category", "unknown")
                         self.metrics_collector.record_analyzer_hit(
-                            analyzer_name=analyzer.name,
-                            issue_type=issue_type
+                            analyzer_name=analyzer.name, issue_type=issue_type
                         )
             except Exception as e:
                 # Log analyzer failure but continue with other analyzers

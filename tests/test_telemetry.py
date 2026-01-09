@@ -165,9 +165,7 @@ class TestTelemetryCollector:
                 telemetry_file=telemetry_file,
             )
 
-            collector.events.append(
-                TelemetryEvent(event_type="test", data={})
-            )
+            collector.events.append(TelemetryEvent(event_type="test", data={}))
             collector.flush()
 
             # File should not be created
@@ -278,10 +276,13 @@ class TestTelemetryConfig:
 
             # Create existing config
             with open(config_file, "w") as f:
-                json.dump({
-                    "enabled": True,
-                    "anonymous_id": "test123456789abc",
-                }, f)
+                json.dump(
+                    {
+                        "enabled": True,
+                        "anonymous_id": "test123456789abc",
+                    },
+                    f,
+                )
 
             config = TelemetryConfig(config_file=config_file)
 
@@ -318,6 +319,7 @@ def test_enable_disable_telemetry():
     with TemporaryDirectory() as tmpdir:
         # Mock home directory
         import os
+
         original_home = os.environ.get("HOME")
         os.environ["HOME"] = tmpdir
 

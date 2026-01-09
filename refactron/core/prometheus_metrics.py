@@ -26,43 +26,53 @@ class PrometheusMetrics:
         """
         lines = []
         summary = self.metrics_collector.get_combined_summary()
-        
+
         # Analysis metrics
         analysis = summary.get("analysis", {})
-        
+
         # HELP and TYPE declarations
         lines.append("# HELP refactron_files_analyzed_total Total number of files analyzed")
         lines.append("# TYPE refactron_files_analyzed_total counter")
         lines.append(f"refactron_files_analyzed_total {analysis.get('total_files_analyzed', 0)}")
         lines.append("")
-        
-        lines.append("# HELP refactron_files_failed_total Total number of files that failed analysis")
+
+        lines.append(
+            "# HELP refactron_files_failed_total Total number of files that failed analysis"
+        )
         lines.append("# TYPE refactron_files_failed_total counter")
         lines.append(f"refactron_files_failed_total {analysis.get('total_files_failed', 0)}")
         lines.append("")
-        
+
         lines.append("# HELP refactron_issues_found_total Total number of issues found")
         lines.append("# TYPE refactron_issues_found_total counter")
         lines.append(f"refactron_issues_found_total {analysis.get('total_issues_found', 0)}")
         lines.append("")
-        
-        lines.append("# HELP refactron_analysis_duration_ms Total analysis duration in milliseconds")
+
+        lines.append(
+            "# HELP refactron_analysis_duration_ms Total analysis duration in milliseconds"
+        )
         lines.append("# TYPE refactron_analysis_duration_ms gauge")
         lines.append(f"refactron_analysis_duration_ms {analysis.get('total_analysis_time_ms', 0)}")
         lines.append("")
-        
-        lines.append("# HELP refactron_avg_analysis_time_per_file_ms Average analysis time per file in milliseconds")
+
+        lines.append(
+            "# HELP refactron_avg_analysis_time_per_file_ms Average analysis time per file in milliseconds"
+        )
         lines.append("# TYPE refactron_avg_analysis_time_per_file_ms gauge")
-        lines.append(f"refactron_avg_analysis_time_per_file_ms {analysis.get('average_time_per_file_ms', 0)}")
+        lines.append(
+            f"refactron_avg_analysis_time_per_file_ms {analysis.get('average_time_per_file_ms', 0)}"
+        )
         lines.append("")
-        
+
         lines.append("# HELP refactron_analysis_success_rate Analysis success rate as percentage")
         lines.append("# TYPE refactron_analysis_success_rate gauge")
         lines.append(f"refactron_analysis_success_rate {analysis.get('success_rate_percent', 0)}")
         lines.append("")
-        
+
         # Analyzer hit counts
-        lines.append("# HELP refactron_analyzer_hits_total Number of times each analyzer found issues")
+        lines.append(
+            "# HELP refactron_analyzer_hits_total Number of times each analyzer found issues"
+        )
         lines.append("# TYPE refactron_analyzer_hits_total counter")
         analyzer_hits = analysis.get("analyzer_hit_counts", {})
         for analyzer, count in analyzer_hits.items():
@@ -70,7 +80,7 @@ class PrometheusMetrics:
         if not analyzer_hits:
             lines.append('refactron_analyzer_hits_total{analyzer=""} 0')
         lines.append("")
-        
+
         # Issue type counts
         lines.append("# HELP refactron_issue_type_total Number of issues by type")
         lines.append("# TYPE refactron_issue_type_total counter")
@@ -80,37 +90,59 @@ class PrometheusMetrics:
         if not issue_types:
             lines.append('refactron_issue_type_total{issue_type=""} 0')
         lines.append("")
-        
+
         # Refactoring metrics
         refactoring = summary.get("refactoring", {})
-        
-        lines.append("# HELP refactron_refactorings_applied_total Total number of refactorings applied")
+
+        lines.append(
+            "# HELP refactron_refactorings_applied_total Total number of refactorings applied"
+        )
         lines.append("# TYPE refactron_refactorings_applied_total counter")
-        lines.append(f"refactron_refactorings_applied_total {refactoring.get('total_refactorings_applied', 0)}")
+        lines.append(
+            f"refactron_refactorings_applied_total {refactoring.get('total_refactorings_applied', 0)}"
+        )
         lines.append("")
-        
-        lines.append("# HELP refactron_refactorings_failed_total Total number of refactorings that failed")
+
+        lines.append(
+            "# HELP refactron_refactorings_failed_total Total number of refactorings that failed"
+        )
         lines.append("# TYPE refactron_refactorings_failed_total counter")
-        lines.append(f"refactron_refactorings_failed_total {refactoring.get('total_refactorings_failed', 0)}")
+        lines.append(
+            f"refactron_refactorings_failed_total {refactoring.get('total_refactorings_failed', 0)}"
+        )
         lines.append("")
-        
-        lines.append("# HELP refactron_refactoring_duration_ms Total refactoring duration in milliseconds")
+
+        lines.append(
+            "# HELP refactron_refactoring_duration_ms Total refactoring duration in milliseconds"
+        )
         lines.append("# TYPE refactron_refactoring_duration_ms gauge")
-        lines.append(f"refactron_refactoring_duration_ms {refactoring.get('total_refactoring_time_ms', 0)}")
+        lines.append(
+            f"refactron_refactoring_duration_ms {refactoring.get('total_refactoring_time_ms', 0)}"
+        )
         lines.append("")
-        
-        lines.append("# HELP refactron_avg_refactoring_time_per_operation_ms Average refactoring time per operation in milliseconds")
+
+        lines.append(
+            "# HELP refactron_avg_refactoring_time_per_operation_ms Average refactoring time per operation in milliseconds"
+        )
         lines.append("# TYPE refactron_avg_refactoring_time_per_operation_ms gauge")
-        lines.append(f"refactron_avg_refactoring_time_per_operation_ms {refactoring.get('average_time_per_operation_ms', 0)}")
+        lines.append(
+            f"refactron_avg_refactoring_time_per_operation_ms {refactoring.get('average_time_per_operation_ms', 0)}"
+        )
         lines.append("")
-        
-        lines.append("# HELP refactron_refactoring_success_rate Refactoring success rate as percentage")
+
+        lines.append(
+            "# HELP refactron_refactoring_success_rate Refactoring success rate as percentage"
+        )
         lines.append("# TYPE refactron_refactoring_success_rate gauge")
-        lines.append(f"refactron_refactoring_success_rate {refactoring.get('success_rate_percent', 0)}")
+        lines.append(
+            f"refactron_refactoring_success_rate {refactoring.get('success_rate_percent', 0)}"
+        )
         lines.append("")
-        
+
         # Refactorer hit counts
-        lines.append("# HELP refactron_refactorer_hits_total Number of times each refactorer was applied")
+        lines.append(
+            "# HELP refactron_refactorer_hits_total Number of times each refactorer was applied"
+        )
         lines.append("# TYPE refactron_refactorer_hits_total counter")
         refactorer_hits = refactoring.get("refactorer_hit_counts", {})
         for refactorer, count in refactorer_hits.items():
@@ -118,17 +150,21 @@ class PrometheusMetrics:
         if not refactorer_hits:
             lines.append('refactron_refactorer_hits_total{refactorer=""} 0')
         lines.append("")
-        
+
         # Risk level distribution
-        lines.append("# HELP refactron_refactoring_risk_level_total Number of refactorings by risk level")
+        lines.append(
+            "# HELP refactron_refactoring_risk_level_total Number of refactorings by risk level"
+        )
         lines.append("# TYPE refactron_refactoring_risk_level_total counter")
         risk_levels = refactoring.get("risk_level_distribution", {})
         for risk_level, count in risk_levels.items():
-            lines.append(f'refactron_refactoring_risk_level_total{{risk_level="{risk_level}"}} {count}')
+            lines.append(
+                f'refactron_refactoring_risk_level_total{{risk_level="{risk_level}"}} {count}'
+            )
         if not risk_levels:
             lines.append('refactron_refactoring_risk_level_total{risk_level=""} 0')
         lines.append("")
-        
+
         return "\n".join(lines)
 
 
@@ -140,7 +176,7 @@ class MetricsHTTPHandler(BaseHTTPRequestHandler):
         if self.path == "/metrics":
             metrics = PrometheusMetrics()
             content = metrics.format_metrics()
-            
+
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
             self.send_header("Content-Length", str(len(content)))

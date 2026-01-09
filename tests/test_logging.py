@@ -40,11 +40,12 @@ class TestJSONFormatter:
     def test_format_with_exception(self):
         """Test log record with exception info."""
         formatter = JSONFormatter()
-        
+
         try:
             raise ValueError("Test error")
         except ValueError:
             import sys
+
             exc_info = sys.exc_info()
 
         record = logging.LogRecord(
@@ -182,7 +183,7 @@ class TestStructuredLogger:
         """Test different log levels."""
         with TemporaryDirectory() as tmpdir:
             log_file = Path(tmpdir) / "test.log"
-            
+
             # Test with WARNING level
             logger = StructuredLogger(
                 name="test",
@@ -203,10 +204,10 @@ class TestStructuredLogger:
 
             # Only WARNING and ERROR should be logged
             assert len(lines) == 2
-            
+
             log_data_1 = json.loads(lines[0])
             log_data_2 = json.loads(lines[1])
-            
+
             assert log_data_1["level"] == "WARNING"
             assert log_data_2["level"] == "ERROR"
 
@@ -221,7 +222,8 @@ class TestStructuredLogger:
 
         # Verify no console handlers
         console_handlers = [
-            h for h in logger.get_logger().handlers 
+            h
+            for h in logger.get_logger().handlers
             if isinstance(h, logging.StreamHandler) and h.stream.name == "<stdout>"
         ]
         assert len(console_handlers) == 0
@@ -236,10 +238,7 @@ class TestStructuredLogger:
         )
 
         # Verify no file handlers
-        file_handlers = [
-            h for h in logger.get_logger().handlers 
-            if hasattr(h, "baseFilename")
-        ]
+        file_handlers = [h for h in logger.get_logger().handlers if hasattr(h, "baseFilename")]
         assert len(file_handlers) == 0
 
 

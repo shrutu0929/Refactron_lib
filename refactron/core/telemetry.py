@@ -21,7 +21,9 @@ class TelemetryEvent:
     """Represents a single telemetry event."""
 
     event_type: str
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     data: Dict[str, Any] = field(default_factory=dict)
 
@@ -44,7 +46,7 @@ class TelemetryCollector:
         """
         self.enabled = enabled
         self.anonymous_id = anonymous_id or self._generate_anonymous_id()
-        
+
         # Set default telemetry file location
         if telemetry_file is None:
             telemetry_dir = Path.home() / ".refactron" / "telemetry"
@@ -82,14 +84,16 @@ class TelemetryCollector:
             return
 
         event_data = data or {}
-        
+
         # Add system information (anonymous)
-        event_data.update({
-            "anonymous_id": self.anonymous_id,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-            "platform": platform.system(),
-            "platform_version": platform.release(),
-        })
+        event_data.update(
+            {
+                "anonymous_id": self.anonymous_id,
+                "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+                "platform": platform.system(),
+                "platform_version": platform.release(),
+            }
+        )
 
         event = TelemetryEvent(
             event_type=event_type,
@@ -170,7 +174,9 @@ class TelemetryCollector:
             },
         )
 
-    def record_feature_usage(self, feature_name: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def record_feature_usage(
+        self, feature_name: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Record a feature usage event.
 
         Args:
@@ -317,17 +323,17 @@ def get_telemetry_collector(enabled: Optional[bool] = None) -> TelemetryCollecto
         Global TelemetryCollector instance
     """
     global _global_telemetry_collector
-    
+
     if _global_telemetry_collector is None:
         # Load configuration
         config = TelemetryConfig()
         is_enabled = enabled if enabled is not None else config.enabled
-        
+
         _global_telemetry_collector = TelemetryCollector(
             enabled=is_enabled,
             anonymous_id=config.anonymous_id,
         )
-    
+
     return _global_telemetry_collector
 
 
@@ -335,7 +341,7 @@ def enable_telemetry() -> None:
     """Enable telemetry collection globally."""
     config = TelemetryConfig()
     config.enable()
-    
+
     global _global_telemetry_collector
     _global_telemetry_collector = None  # Reset to pick up new config
 
@@ -344,6 +350,6 @@ def disable_telemetry() -> None:
     """Disable telemetry collection globally."""
     config = TelemetryConfig()
     config.disable()
-    
+
     global _global_telemetry_collector
     _global_telemetry_collector = None  # Reset to pick up new config

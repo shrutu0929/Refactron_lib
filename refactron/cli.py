@@ -243,7 +243,7 @@ def analyze(
     # Setup
     target_path = _validate_path(target)
     cfg = _load_config(config)
-    
+
     # Override config with CLI options
     if log_level:
         cfg.log_level = log_level
@@ -251,7 +251,7 @@ def analyze(
         cfg.log_format = log_format
     if metrics is not None:
         cfg.enable_metrics = metrics
-    
+
     _print_file_count(target_path)
 
     # Run analysis
@@ -283,8 +283,12 @@ def analyze(
         console.print("\n[bold]📊 Metrics Summary:[/bold]")
         collector = get_metrics_collector()
         metrics_summary = collector.get_analysis_summary()
-        console.print(f"  Total analysis time: {metrics_summary.get('total_analysis_time_ms', 0):.2f}ms")
-        console.print(f"  Average time per file: {metrics_summary.get('average_time_per_file_ms', 0):.2f}ms")
+        console.print(
+            f"  Total analysis time: {metrics_summary.get('total_analysis_time_ms', 0):.2f}ms"
+        )
+        console.print(
+            f"  Average time per file: {metrics_summary.get('average_time_per_file_ms', 0):.2f}ms"
+        )
         console.print(f"  Success rate: {metrics_summary.get('success_rate_percent', 0):.1f}%")
 
     # Exit with error code if critical issues found
@@ -723,7 +727,9 @@ def telemetry(action: str) -> None:
     elif action == "disable":
         config.disable()
         console.print("[yellow]Telemetry has been disabled.[/yellow]")
-        console.print("\n[dim]You can re-enable it anytime with 'refactron telemetry --enable'[/dim]")
+        console.print(
+            "\n[dim]You can re-enable it anytime with 'refactron telemetry --enable'[/dim]"
+        )
     else:  # status
         if config.enabled:
             console.print("[green]✅ Telemetry is currently enabled[/green]")
@@ -784,15 +790,9 @@ def metrics(format: str) -> None:
         console.print(f"  Files analyzed: {analysis.get('total_files_analyzed', 0)}")
         console.print(f"  Files failed: {analysis.get('total_files_failed', 0)}")
         console.print(f"  Issues found: {analysis.get('total_issues_found', 0)}")
-        console.print(
-            f"  Total time: {analysis.get('total_analysis_time_ms', 0):.2f}ms"
-        )
-        console.print(
-            f"  Avg time per file: {analysis.get('average_time_per_file_ms', 0):.2f}ms"
-        )
-        console.print(
-            f"  Success rate: {analysis.get('success_rate_percent', 0):.1f}%"
-        )
+        console.print(f"  Total time: {analysis.get('total_analysis_time_ms', 0):.2f}ms")
+        console.print(f"  Avg time per file: {analysis.get('average_time_per_file_ms', 0):.2f}ms")
+        console.print(f"  Success rate: {analysis.get('success_rate_percent', 0):.1f}%")
 
         # Analyzer hit counts
         analyzer_hits = analysis.get("analyzer_hit_counts", {})
@@ -805,12 +805,8 @@ def metrics(format: str) -> None:
         console.print("\n[bold]Refactoring Metrics:[/bold]")
         console.print(f"  Applied: {refactoring.get('total_refactorings_applied', 0)}")
         console.print(f"  Failed: {refactoring.get('total_refactorings_failed', 0)}")
-        console.print(
-            f"  Total time: {refactoring.get('total_refactoring_time_ms', 0):.2f}ms"
-        )
-        console.print(
-            f"  Success rate: {refactoring.get('success_rate_percent', 0):.1f}%"
-        )
+        console.print(f"  Total time: {refactoring.get('total_refactoring_time_ms', 0):.2f}ms")
+        console.print(f"  Success rate: {refactoring.get('success_rate_percent', 0):.1f}%")
 
         # Refactorer hit counts
         refactorer_hits = refactoring.get("refactorer_hit_counts", {})
@@ -851,7 +847,7 @@ def serve_metrics(host: str, port: int) -> None:
     try:
         start_metrics_server(host=host, port=port)
         console.print(f"[green]✅ Metrics server started on http://{host}:{port}[/green]")
-        console.print(f"\n[dim]Endpoints:[/dim]")
+        console.print("\n[dim]Endpoints:[/dim]")
         console.print(f"[dim]  • http://{host}:{port}/metrics - Prometheus metrics[/dim]")
         console.print(f"[dim]  • http://{host}:{port}/health  - Health check[/dim]")
         console.print("\n[yellow]Press Ctrl+C to stop the server[/yellow]")
