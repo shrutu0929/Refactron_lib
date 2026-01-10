@@ -95,6 +95,28 @@ class RefactronConfig:
     memory_pressure_threshold_available_mb: float = 500.0
     cache_cleanup_threshold_percent: float = 0.8
 
+    # Logging and monitoring settings
+    log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    log_format: str = "json"  # json or text
+    log_file: Optional[Path] = None  # If None, uses default location
+    log_max_bytes: int = 10 * 1024 * 1024  # 10MB default
+    log_backup_count: int = 5
+    enable_console_logging: bool = True
+    enable_file_logging: bool = True
+
+    # Metrics collection settings
+    enable_metrics: bool = True
+    metrics_detailed: bool = True  # Track detailed per-file metrics
+
+    # Prometheus settings
+    enable_prometheus: bool = False
+    prometheus_host: str = "127.0.0.1"
+    prometheus_port: int = 9090
+
+    # Telemetry settings
+    enable_telemetry: bool = False  # Opt-in only
+    telemetry_endpoint: Optional[str] = None  # For future remote submission
+
     @classmethod
     def from_file(cls, config_path: Path) -> "RefactronConfig":
         """Load configuration from a YAML file.
@@ -177,6 +199,20 @@ class RefactronConfig:
             "memory_pressure_threshold_percent": self.memory_pressure_threshold_percent,
             "memory_pressure_threshold_available_mb": self.memory_pressure_threshold_available_mb,
             "cache_cleanup_threshold_percent": self.cache_cleanup_threshold_percent,
+            "log_level": self.log_level,
+            "log_format": self.log_format,
+            "log_file": str(self.log_file) if self.log_file else None,
+            "log_max_bytes": self.log_max_bytes,
+            "log_backup_count": self.log_backup_count,
+            "enable_console_logging": self.enable_console_logging,
+            "enable_file_logging": self.enable_file_logging,
+            "enable_metrics": self.enable_metrics,
+            "metrics_detailed": self.metrics_detailed,
+            "enable_prometheus": self.enable_prometheus,
+            "prometheus_host": self.prometheus_host,
+            "prometheus_port": self.prometheus_port,
+            "enable_telemetry": self.enable_telemetry,
+            "telemetry_endpoint": self.telemetry_endpoint,
         }
 
         try:

@@ -1,0 +1,200 @@
+# Refactron Configuration File with Logging & Monitoring
+# This file demonstrates all available configuration options including
+# the new logging, metrics, Prometheus, and telemetry features.
+
+# ============================================================================
+# Analysis Settings
+# ============================================================================
+enabled_analyzers:
+  - complexity
+  - code_smells
+  - security
+  - dependency
+  - dead_code
+  - type_hints
+  - performance
+
+# ============================================================================
+# Refactoring Settings
+# ============================================================================
+enabled_refactorers:
+  - extract_method
+  - extract_constant
+  - simplify_conditionals
+  - reduce_parameters
+  - add_docstring
+
+# ============================================================================
+# Complexity Thresholds
+# ============================================================================
+max_function_complexity: 10
+max_function_length: 50
+max_file_length: 500
+max_parameters: 5
+
+# ============================================================================
+# Reporting Settings
+# ============================================================================
+report_format: text  # text, json, html
+show_details: true
+
+# ============================================================================
+# Safety Settings
+# ============================================================================
+require_preview: true
+backup_enabled: true
+
+# ============================================================================
+# File Patterns
+# ============================================================================
+include_patterns:
+  - "*.py"
+
+exclude_patterns:
+  - "**/test_*.py"
+  - "**/__pycache__/**"
+  - "**/venv/**"
+  - "**/env/**"
+  - "**/.git/**"
+
+# ============================================================================
+# Security Analyzer Settings
+# ============================================================================
+security_ignore_patterns:
+  - "**/test_*.py"
+  - "**/tests/**/*.py"
+  - "**/*_test.py"
+
+security_min_confidence: 0.5
+
+# ============================================================================
+# Performance Optimization Settings
+# ============================================================================
+enable_ast_cache: true
+max_ast_cache_size_mb: 100
+
+enable_incremental_analysis: true
+
+enable_parallel_processing: true
+max_parallel_workers: null  # null = auto-detect CPU cores
+use_multiprocessing: false  # Threading by default (more compatible)
+
+enable_memory_profiling: false
+memory_optimization_threshold_mb: 5.0
+memory_pressure_threshold_percent: 80.0
+memory_pressure_threshold_available_mb: 500.0
+cache_cleanup_threshold_percent: 0.8
+
+# ============================================================================
+# LOGGING SETTINGS (NEW)
+# ============================================================================
+
+# Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level: INFO
+
+# Log format: json (for CI/CD) or text (for console)
+# JSON format is recommended for log aggregation systems like ELK, Splunk, etc.
+log_format: json
+
+# Log file location (null = default: ~/.refactron/logs/refactron.log)
+log_file: null
+
+# Maximum log file size before rotation (in bytes)
+log_max_bytes: 10485760  # 10 MB
+
+# Number of backup log files to keep
+log_backup_count: 5
+
+# Enable console logging
+enable_console_logging: true
+
+# Enable file logging
+enable_file_logging: true
+
+# ============================================================================
+# METRICS COLLECTION SETTINGS (NEW)
+# ============================================================================
+
+# Enable metrics collection
+# Tracks analysis time, refactoring operations, success rates, etc.
+enable_metrics: true
+
+# Track detailed per-file metrics
+# When true, collects metrics for each file analyzed
+metrics_detailed: true
+
+# ============================================================================
+# PROMETHEUS SETTINGS (NEW)
+# ============================================================================
+
+# Enable Prometheus metrics endpoint
+# When true, starts an HTTP server exposing metrics in Prometheus format
+enable_prometheus: false
+
+# Prometheus server host (default: 127.0.0.1 for localhost-only access)
+# Use "0.0.0.0" to expose to all network interfaces (security consideration)
+prometheus_host: "127.0.0.1"
+
+# Prometheus server port
+prometheus_port: 9090
+
+# ============================================================================
+# TELEMETRY SETTINGS (NEW)
+# ============================================================================
+
+# Enable opt-in telemetry
+# PRIVACY: Telemetry is OPT-IN only and collects anonymous usage statistics
+# No code, file names, or personal information is collected
+# Use "refactron telemetry --enable" to enable or "--disable" to disable
+enable_telemetry: false
+
+# Telemetry endpoint (for future remote submission)
+telemetry_endpoint: null
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+
+# Example 1: Development with detailed logging
+# log_level: DEBUG
+# log_format: text
+# enable_metrics: true
+# enable_prometheus: false
+# enable_telemetry: false
+
+# Example 2: CI/CD with JSON logging
+# log_level: INFO
+# log_format: json
+# enable_metrics: true
+# enable_prometheus: false
+# enable_telemetry: false
+
+# Example 3: Production monitoring with Prometheus
+# log_level: WARNING
+# log_format: json
+# enable_metrics: true
+# enable_prometheus: true
+# prometheus_port: 9090
+# enable_telemetry: true
+
+# ============================================================================
+# CLI USAGE
+# ============================================================================
+
+# Enable specific log settings via CLI:
+# refactron analyze mycode.py --log-level DEBUG --log-format json
+
+# Show metrics after analysis:
+# refactron analyze mycode.py --show-metrics
+
+# View collected metrics:
+# refactron metrics
+# refactron metrics --format json
+
+# Start Prometheus metrics server:
+# refactron serve-metrics --port 9090
+
+# Manage telemetry:
+# refactron telemetry --status
+# refactron telemetry --enable
+# refactron telemetry --disable

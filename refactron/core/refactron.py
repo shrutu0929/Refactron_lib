@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
@@ -18,10 +19,14 @@ from refactron.core.cache import ASTCache
 from refactron.core.config import RefactronConfig
 from refactron.core.exceptions import AnalysisError, RefactoringError
 from refactron.core.incremental import IncrementalAnalysisTracker
+from refactron.core.logging_config import setup_logging
 from refactron.core.memory_profiler import MemoryProfiler
+from refactron.core.metrics import get_metrics_collector
 from refactron.core.models import FileMetrics
 from refactron.core.parallel import ParallelProcessor
+from refactron.core.prometheus_metrics import start_metrics_server
 from refactron.core.refactor_result import RefactorResult
+from refactron.core.telemetry import get_telemetry_collector
 from refactron.refactorers.add_docstring_refactorer import AddDocstringRefactorer
 from refactron.refactorers.base_refactorer import BaseRefactorer
 from refactron.refactorers.extract_method_refactorer import ExtractMethodRefactorer
@@ -53,6 +58,43 @@ class Refactron:
         self.config = config or RefactronConfig.default()
         self.analyzers: List[BaseAnalyzer] = []
         self.refactorers: List[BaseRefactorer] = []
+
+        # Initialize structured logging using the configured settings
+        self.structured_logger = setup_logging(
+            level=self.config.log_level,
+            log_file=self.config.log_file,
+            log_format=self.config.log_format,
+            max_bytes=self.config.log_max_bytes,
+            backup_count=self.config.log_backup_count,
+            enable_console=self.config.enable_console_logging,
+            enable_file=self.config.enable_file_logging,
+        )
+
+        # Initialize metrics collection
+        if self.config.enable_metrics:
+            self.metrics_collector = get_metrics_collector()
+        else:
+            self.metrics_collector = None
+
+        # Initialize telemetry
+        if self.config.enable_telemetry:
+            self.telemetry_collector = get_telemetry_collector(enabled=True)
+        else:
+            self.telemetry_collector = None
+
+        # Start Prometheus metrics server if enabled
+        if self.config.enable_prometheus:
+            try:
+                start_metrics_server(
+                    host=self.config.prometheus_host,
+                    port=self.config.prometheus_port,
+                )
+                logger.info(
+                    f"Prometheus metrics server started on "
+                    f"{self.config.prometheus_host}:{self.config.prometheus_port}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to start Prometheus metrics server: {e}")
 
         # Initialize performance optimization components
         self.ast_cache = ASTCache(
@@ -137,6 +179,10 @@ class Refactron:
             to analyze, they are logged and skipped, allowing analysis to continue
             on remaining files.
         """
+        # Start metrics collection
+        if self.metrics_collector:
+            self.metrics_collector.start_analysis()
+
         # Start memory profiling
         if self.memory_profiler.enabled:
             self.memory_profiler.snapshot("analysis_start")
@@ -242,6 +288,21 @@ class Refactron:
         if self.incremental_tracker.enabled:
             self.incremental_tracker.save()
 
+        # End metrics collection
+        if self.metrics_collector:
+            self.metrics_collector.end_analysis()
+
+            # Record telemetry event
+            if self.telemetry_collector:
+                analyzer_names = [a.__class__.__name__ for a in self.analyzers]
+                summary = self.metrics_collector.get_analysis_summary()
+                self.telemetry_collector.record_analysis_completed(
+                    files_analyzed=summary.get("total_files_analyzed", 0),
+                    total_time_ms=summary.get("total_analysis_time_ms", 0),
+                    issues_found=summary.get("total_issues_found", 0),
+                    analyzers_used=analyzer_names,
+                )
+
         # End memory profiling
         if self.memory_profiler.enabled:
             self.memory_profiler.snapshot("analysis_end")
@@ -263,15 +324,42 @@ class Refactron:
         Raises:
             AnalysisError: If file cannot be analyzed
         """
+        # Track analysis time
+        start_time = time.time()
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 source_code = f.read()
         except UnicodeDecodeError as e:
+            # Record failed analysis metric
+            if self.metrics_collector and self.config.metrics_detailed:
+                analysis_time_ms = (time.time() - start_time) * 1000
+                self.metrics_collector.record_file_analysis(
+                    file_path=str(file_path),
+                    analysis_time_ms=analysis_time_ms,
+                    lines_of_code=0,
+                    issues_found=0,
+                    analyzers_run=[],
+                    success=False,
+                    error_message="Encoding error",
+                )
             raise AnalysisError(
                 f"Failed to read file due to encoding error: {e}",
                 file_path=file_path,
             ) from e
         except (IOError, OSError) as e:
+            # Record failed analysis metric
+            if self.metrics_collector and self.config.metrics_detailed:
+                analysis_time_ms = (time.time() - start_time) * 1000
+                self.metrics_collector.record_file_analysis(
+                    file_path=str(file_path),
+                    analysis_time_ms=analysis_time_ms,
+                    lines_of_code=0,
+                    issues_found=0,
+                    analyzers_run=[],
+                    success=False,
+                    error_message="I/O error",
+                )
             raise AnalysisError(
                 f"Failed to read file: {e}",
                 file_path=file_path,
@@ -300,11 +388,24 @@ class Refactron:
                 file_path=file_path,
             ) from e
 
+        # Track which analyzers run
+        analyzers_run = []
+
         # Run all analyzers with individual error handling
         for analyzer in self.analyzers:
             try:
                 issues = analyzer.analyze(file_path, source_code)
                 metrics.issues.extend(issues)
+                analyzers_run.append(analyzer.name)
+
+                # Track analyzer hits for each issue
+                # Note: Issues are expected to have a 'category' attribute for type tracking
+                if self.metrics_collector:
+                    for issue in issues:
+                        issue_type = getattr(issue, "category", "unknown")
+                        self.metrics_collector.record_analyzer_hit(
+                            analyzer_name=analyzer.name, issue_type=issue_type
+                        )
             except Exception as e:
                 # Log analyzer failure but continue with other analyzers
                 # Use debug level for expected errors, warning for unexpected
@@ -316,6 +417,18 @@ class Refactron:
                         exc_info=True,
                     )
                 # Don't raise - allow other analyzers to run
+
+        # Record file analysis metrics
+        if self.metrics_collector and self.config.metrics_detailed:
+            analysis_time_ms = (time.time() - start_time) * 1000
+            self.metrics_collector.record_file_analysis(
+                file_path=str(file_path),
+                analysis_time_ms=analysis_time_ms,
+                lines_of_code=loc,
+                issues_found=len(metrics.issues),
+                analyzers_run=analyzers_run,
+                success=True,
+            )
 
         return metrics
 
