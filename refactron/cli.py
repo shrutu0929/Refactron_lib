@@ -94,8 +94,8 @@ def _detect_project_type() -> Optional[str]:
     Detect project type by checking for framework-specific files and imports.
     
     Detection patterns:
-    - Django: Checks for settings.py files with Django-specific imports/variables
-    - FastAPI: Looks for 'from fastapi import' or 'import fastapi' in any Python file
+    - Django: Checks for settings.py or manage.py files with Django-specific imports/variables
+    - FastAPI: Looks for 'from fastapi import' or 'import fastapi' in common entry points
     - Flask: Looks for 'from flask import' with Flask app instantiation patterns
     
     Returns:
@@ -103,36 +103,38 @@ def _detect_project_type() -> Optional[str]:
     """
     current_dir = Path.cwd()
     
-    # Check for Django first (settings.py is a strong signal)
-    for settings_file in current_dir.rglob("**/settings.py"):
-        try:
-            with open(settings_file, "r", encoding="utf-8") as f:
-                content = f.read()
-                if "django" in content.lower() or "DJANGO_SETTINGS_MODULE" in content:
-                    return "django"
-        except (IOError, OSError):
-            pass
+    # Check for Django first (manage.py or settings.py are strong signals)
+    for django_file in ["manage.py", "**/settings.py"]:
+        for file_path in current_dir.glob(django_file):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    # Read line by line to avoid loading large files
+                    for line in f:
+                        if "django" in line.lower() or "DJANGO_SETTINGS_MODULE" in line:
+                            return "django"
+            except (IOError, OSError):
+                pass
     
-    # Check for FastAPI and Flask in a single pass through Python files
-    for py_file in current_dir.rglob("*.py"):
-        try:
-            with open(py_file, "r", encoding="utf-8") as f:
-                content = f.read()
-                
-                # Check for FastAPI
-                if "from fastapi import" in content or "import fastapi" in content:
-                    return "fastapi"
-                
-                # Check for Flask
-                if "from flask import" in content or "import flask" in content:
-                    if "Flask(__name__)" in content or "app = Flask" in content:
-                        return "flask"
-        except (IOError, OSError):
-            pass
+    # Check common entry point files for FastAPI and Flask
+    common_entry_points = ["main.py", "app.py", "application.py", "server.py", "api.py"]
+    for entry_point in common_entry_points:
+        for file_path in current_dir.glob(entry_point):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    
+                    # Check for FastAPI
+                    if "from fastapi import" in content or "import fastapi" in content:
+                        return "fastapi"
+                    
+                    # Check for Flask
+                    if "from flask import" in content or "import flask" in content:
+                        if "Flask(__name__)" in content or "app = Flask" in content:
+                            return "flask"
+            except (IOError, OSError):
+                pass
     
     return None
-
-
 
 
 def _print_status_messages(summary: dict) -> None:
