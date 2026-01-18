@@ -8,8 +8,8 @@ import pytest
 
 from refactron.cicd.github_actions import GitHubActionsGenerator
 from refactron.cicd.gitlab_ci import GitLabCIGenerator
-from refactron.cicd.pre_commit import PreCommitGenerator
 from refactron.cicd.pr_integration import PRComment, PRIntegration
+from refactron.cicd.pre_commit import PreCommitGenerator
 from refactron.cicd.quality_gates import QualityGate, QualityGateParser
 from refactron.core.analysis_result import AnalysisResult
 from refactron.core.models import CodeIssue, FileMetrics, IssueCategory, IssueLevel
