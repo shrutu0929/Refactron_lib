@@ -1,7 +1,7 @@
 """GitHub Actions workflow template generation."""
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class GitHubActionsGenerator:
@@ -11,7 +11,7 @@ class GitHubActionsGenerator:
     def generate_analysis_workflow(
         python_versions: Optional[List[str]] = None,
         trigger_on: Optional[List[str]] = None,
-        quality_gate: Optional[Dict] = None,
+        quality_gate: Optional[Dict[str, Any]] = None,
         cache_enabled: bool = True,
         upload_artifacts: bool = True,
     ) -> str:
