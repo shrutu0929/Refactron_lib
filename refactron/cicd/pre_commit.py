@@ -1,7 +1,7 @@
 """Pre-commit hook template generation."""
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 
 class PreCommitGenerator:
@@ -9,7 +9,7 @@ class PreCommitGenerator:
 
     @staticmethod
     def generate_pre_commit_config(
-        stages: Optional[list[str]] = None,
+        stages: Optional[List[str]] = None,
         fail_on_critical: bool = True,
         fail_on_errors: bool = False,
         max_critical: int = 0,

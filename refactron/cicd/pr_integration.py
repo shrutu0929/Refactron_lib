@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from refactron.core.analysis_result import AnalysisResult
-from refactron.core.models import CodeIssue
 
 
 @dataclass

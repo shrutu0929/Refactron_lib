@@ -4,10 +4,9 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from refactron.core.analysis_result import AnalysisResult
-from refactron.core.models import IssueLevel
 
 
 @dataclass
@@ -23,7 +22,7 @@ class QualityGate:
     fail_on_warnings: bool = False
     min_success_rate: float = 0.95  # 95% of files must analyze successfully
 
-    def check(self, result: AnalysisResult) -> tuple[bool, str]:
+    def check(self, result: AnalysisResult) -> Tuple[bool, str]:
         """Check if quality gate passes.
 
         Args:
@@ -184,7 +183,7 @@ class QualityGateParser:
         }
 
     @staticmethod
-    def enforce_gate(result: AnalysisResult, gate: QualityGate) -> tuple[bool, str, int]:
+    def enforce_gate(result: AnalysisResult, gate: QualityGate) -> Tuple[bool, str, int]:
         """Enforce quality gate on analysis result.
 
         Args:

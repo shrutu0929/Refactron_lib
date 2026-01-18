@@ -1116,7 +1116,7 @@ def generate_cicd(
     Examples:
       refactron generate-cicd github --output .github/workflows
       refactron generate-cicd gitlab --output .
-      refactron generate-cicd pre-commit --output .pre-commit-config.yaml
+      refactron generate-cicd pre-commit --output .
       refactron generate-cicd all --output .
     """
     from pathlib import Path
@@ -1200,18 +1200,25 @@ def generate_cicd(
             pre_commit_gen.save_config(config_content, config_path)
             console.print(f"[green]✅ Created: {config_path}[/green]")
 
-            # Generate simple hook script
-            hook_content = pre_commit_gen.generate_simple_hook()
-            hooks_dir = output_path / ".git" / "hooks"
-            hooks_dir.mkdir(parents=True, exist_ok=True)
-            hook_path = hooks_dir / "pre-commit.refactron"
-            pre_commit_gen.save_hook(hook_content, hook_path)
-            console.print(f"[green]✅ Created: {hook_path}[/green]")
+            # Generate simple hook script (only if this is a git repository)
+            git_dir = output_path / ".git"
+            if git_dir.is_dir():
+                hook_content = pre_commit_gen.generate_simple_hook()
+                hooks_dir = git_dir / "hooks"
+                hooks_dir.mkdir(parents=True, exist_ok=True)
+                hook_path = hooks_dir / "pre-commit.refactron"
+                pre_commit_gen.save_hook(hook_content, hook_path)
+                console.print(f"[green]✅ Created: {hook_path}[/green]")
+            else:
+                console.print(
+                    "[dim]ℹ No .git directory found at the output path; "
+                    "skipping installation of the git hook script.[/dim]"
+                )
 
         console.print("\n[green]✅ CI/CD templates generated successfully![/green]")
         console.print("\n[dim]💡 Next steps:[/dim]")
         console.print("[dim]  1. Review and customize the generated templates[/dim]")
-        console.print("[dim]  2. For GitHub Actions: Move workflows to .github/workflows/[/dim]")
+        console.print("[dim]  2. For GitHub Actions: Workflows are in .github/workflows/[/dim]")
         console.print("[dim]  3. For GitLab CI: Merge into your .gitlab-ci.yml[/dim]")
         console.print(
             "[dim]  4. For pre-commit: Install with 'pre-commit install'[/dim]"

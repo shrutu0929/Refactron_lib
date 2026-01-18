@@ -1,7 +1,7 @@
 """GitHub Actions workflow template generation."""
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 class GitHubActionsGenerator:
@@ -9,8 +9,8 @@ class GitHubActionsGenerator:
 
     @staticmethod
     def generate_analysis_workflow(
-        python_versions: Optional[list[str]] = None,
-        trigger_on: list[str] = None,
+        python_versions: Optional[List[str]] = None,
+        trigger_on: Optional[List[str]] = None,
         quality_gate: Optional[Dict] = None,
         cache_enabled: bool = True,
         upload_artifacts: bool = True,
@@ -37,7 +37,6 @@ class GitHubActionsGenerator:
             quality_gate = {"fail_on_critical": True, "max_critical": 0}
 
         python_matrix = ", ".join([f'"{v}"' for v in python_versions])
-        trigger_str = ", ".join([f'"{t}"' for t in trigger_on])
 
         trigger_yaml = "\n".join(
             [
@@ -171,7 +170,7 @@ EOF
     @staticmethod
     def generate_pre_commit_workflow(
         python_version: str = "3.11",
-        trigger_on: list[str] = None,
+        trigger_on: Optional[List[str]] = None,
     ) -> str:
         """Generate GitHub Actions workflow for pre-commit analysis.
 
@@ -184,8 +183,6 @@ EOF
         """
         if trigger_on is None:
             trigger_on = ["pull_request"]
-
-        trigger_str = ", ".join([f'"{t}"' for t in trigger_on])
 
         trigger_yaml = "\n".join([f"  {t}:" for t in trigger_on])
 
