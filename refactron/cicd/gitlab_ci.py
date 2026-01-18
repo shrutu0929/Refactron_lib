@@ -1,7 +1,7 @@
 """GitLab CI pipeline configuration generation."""
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 class GitLabCIGenerator:
@@ -9,7 +9,7 @@ class GitLabCIGenerator:
 
     @staticmethod
     def generate_analysis_pipeline(
-        python_versions: Optional[list[str]] = None,
+        python_versions: Optional[List[str]] = None,
         quality_gate: Optional[Dict] = None,
         cache_enabled: bool = True,
         artifacts_enabled: bool = True,
@@ -30,8 +30,6 @@ class GitLabCIGenerator:
 
         if quality_gate is None:
             quality_gate = {"fail_on_critical": True, "max_critical": 0}
-
-        python_matrix = ", ".join([f'"{v}"' for v in python_versions])
 
         pipeline = f"""stages:
   - analyze
