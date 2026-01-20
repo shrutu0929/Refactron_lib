@@ -2,9 +2,7 @@
 
 import ast
 import hashlib
-import math
 import re
-from typing import Optional
 
 from refactron.core.models import CodeIssue, RefactoringOperation
 
@@ -12,7 +10,7 @@ from refactron.core.models import CodeIssue, RefactoringOperation
 class PatternFingerprinter:
     """Generates fingerprints for code patterns using AST-based hashing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the pattern fingerprinter."""
         self._hash_algo = hashlib.sha256
 
