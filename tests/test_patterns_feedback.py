@@ -9,6 +9,24 @@ import pytest
 from refactron import Refactron
 from refactron.core.config import RefactronConfig
 from refactron.core.models import RefactoringOperation
+from refactron.patterns.storage import PatternStorage
+
+
+@pytest.fixture
+def temp_storage_dir():
+    """Provide a temporary directory for pattern storage to ensure test isolation."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        yield Path(tmpdir)
+
+
+@pytest.fixture
+def refactron_with_temp_storage(temp_storage_dir):
+    """Provide a Refactron instance with isolated temporary storage."""
+    config = RefactronConfig()
+    refactron = Refactron(config)
+    # Override storage with temporary directory for test isolation
+    refactron.pattern_storage = PatternStorage(storage_dir=temp_storage_dir)
+    return refactron
 
 
 class TestRefactoringOperationID:
@@ -70,10 +88,9 @@ class TestRefactronFeedbackIntegration:
         assert hasattr(refactron, "pattern_storage")
         assert hasattr(refactron, "pattern_fingerprinter")
 
-    def test_record_feedback_success(self):
+    def test_record_feedback_success(self, refactron_with_temp_storage):
         """Test successful feedback recording."""
-        config = RefactronConfig()
-        refactron = Refactron(config)
+        refactron = refactron_with_temp_storage
 
         if not refactron.pattern_storage:
             pytest.skip("Pattern storage not initialized")
@@ -124,10 +141,9 @@ class TestRefactronFeedbackIntegration:
             operation=None,
         )
 
-    def test_record_feedback_invalid_action(self):
+    def test_record_feedback_invalid_action(self, refactron_with_temp_storage):
         """Test that invalid actions are ignored."""
-        config = RefactronConfig()
-        refactron = Refactron(config)
+        refactron = refactron_with_temp_storage
 
         if not refactron.pattern_storage:
             pytest.skip("Pattern storage not initialized")
@@ -154,14 +170,12 @@ class TestRefactronFeedbackIntegration:
             pytest.skip("Pattern fingerprinter not initialized")
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(
-                """
+            f.write("""
 def calculate(price):
     if price > 1000:
         return price * 0.15
     return 0
-"""
-            )
+""")
             temp_path = Path(f.name)
 
         try:
@@ -181,14 +195,12 @@ def calculate(price):
         refactron = Refactron(config)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(
-                """
+            f.write("""
 def calculate(price):
     if price > 1000:
         return price * 0.15
     return 0
-"""
-            )
+""")
             temp_path = Path(f.name)
 
         try:
@@ -271,7 +283,7 @@ class TestProjectRootDetection:
 
             test_file = project_dir / "src" / "test.py"
 
-            root = refactron._detect_project_root(test_file)
+            root = refactron.detect_project_root(test_file)
             assert root.resolve() == project_dir.resolve()
 
     def test_detect_project_root_finds_setup_py(self):
@@ -287,7 +299,7 @@ class TestProjectRootDetection:
 
             test_file = project_dir / "src" / "test.py"
 
-            root = refactron._detect_project_root(test_file)
+            root = refactron.detect_project_root(test_file)
             assert root.resolve() == project_dir.resolve()
 
     def test_detect_project_root_fallback(self):
@@ -298,7 +310,7 @@ class TestProjectRootDetection:
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = Path(tmpdir) / "test.py"
 
-            root = refactron._detect_project_root(test_file)
+            root = refactron.detect_project_root(test_file)
             assert root == test_file.parent
 
 
@@ -314,14 +326,12 @@ class TestFeedbackCLIIntegration:
         runner = CliRunner()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write(
-                """
+            f.write("""
 def calculate(price):
     if price > 1000:
         return price * 0.15
     return 0
-"""
-            )
+""")
             temp_path = f.name
 
         try:
@@ -352,7 +362,7 @@ def calculate(price):
         assert result.exit_code == 0
         assert "feedback" in result.output
 
-    def test_feedback_command_records_feedback(self):
+    def test_feedback_command_records_feedback(self, temp_storage_dir, monkeypatch):
         """Test that feedback command records feedback correctly."""
         from click.testing import CliRunner
 
@@ -361,6 +371,15 @@ def calculate(price):
         runner = CliRunner()
 
         operation_id = str(uuid.uuid4())
+
+        # Mock Refactron to use temporary storage
+        original_refactron_init = Refactron.__init__
+
+        def mock_init(self, config):
+            original_refactron_init(self, config)
+            self.pattern_storage = PatternStorage(storage_dir=temp_storage_dir)
+
+        monkeypatch.setattr(Refactron, "__init__", mock_init)
 
         result = runner.invoke(
             feedback,
@@ -371,12 +390,9 @@ def calculate(price):
         assert "Feedback recorded" in result.output or "✅" in result.output
 
         # Verify feedback was saved
-        config = RefactronConfig()
-        refactron = Refactron(config)
-
-        if refactron.pattern_storage:
-            feedback_list = refactron.pattern_storage.load_feedback()
-            our_feedback = next((f for f in feedback_list if f.operation_id == operation_id), None)
-            if our_feedback:
-                assert our_feedback.action == "accepted"
-                assert our_feedback.reason == "Test reason"
+        storage = PatternStorage(storage_dir=temp_storage_dir)
+        feedback_list = storage.load_feedback()
+        our_feedback = next((f for f in feedback_list if f.operation_id == operation_id), None)
+        if our_feedback:
+            assert our_feedback.action == "accepted"
+            assert our_feedback.reason == "Test reason"
