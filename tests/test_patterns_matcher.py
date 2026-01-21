@@ -1,14 +1,12 @@
 """Tests for PatternMatcher."""
 
+import shutil
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import pytest
-
-from refactron.core.models import RefactoringOperation
 from refactron.patterns.matcher import PatternMatcher
-from refactron.patterns.models import ProjectPatternProfile, RefactoringPattern
+from refactron.patterns.models import RefactoringPattern
 from refactron.patterns.storage import PatternStorage
 
 
@@ -21,9 +19,14 @@ class TestPatternMatcher:
         self.storage = PatternStorage(Path(self.temp_dir))
         self.matcher = PatternMatcher(self.storage)
 
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        if hasattr(self, "temp_dir"):
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+
     def test_find_similar_patterns_no_patterns(self):
         """Test finding patterns when none exist."""
-        code_hash = "abc123" * 8  # 48 chars, need 64 for SHA256, but test works
+        code_hash = "a" * 64  # 64-char SHA-256-style hash
         patterns = self.matcher.find_similar_patterns(code_hash)
 
         assert patterns == []
@@ -286,16 +289,18 @@ class TestPatternMatcher:
         # Manually update cache timestamp to simulate old cache
         self.matcher._cache_timestamp = datetime.now(timezone.utc) - timedelta(seconds=310)
 
-        # Add another pattern
+        # Add another pattern directly to storage (bypassing matcher's cache)
         pattern2 = RefactoringPattern.create(
             pattern_hash="hash2",
             operation_type="extract_method",
             code_snippet_before="x = 2",
             code_snippet_after="y = 2",
         )
+        # Save to storage and clear storage cache to simulate new data
         self.storage.save_pattern(pattern2)
+        self.storage.clear_cache()  # Force storage to reload from disk
 
-        # Should reload from storage (cache is old)
+        # Should reload from storage (cache is old, will trigger TTL check)
         patterns = self.matcher.find_similar_patterns("hash2")
         assert len(patterns) == 1
 

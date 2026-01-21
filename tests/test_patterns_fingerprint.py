@@ -1,9 +1,8 @@
 """Tests for PatternFingerprinter."""
 
+import shutil
 import tempfile
 from pathlib import Path
-
-import pytest
 
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel, RefactoringOperation
 from refactron.patterns.fingerprint import PatternFingerprinter
@@ -15,6 +14,12 @@ class TestPatternFingerprinter:
     def setup_method(self):
         """Set up test fixtures."""
         self.fingerprinter = PatternFingerprinter()
+        self.temp_dir = tempfile.mkdtemp()
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        if hasattr(self, "temp_dir"):
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_fingerprint_code_basic(self):
         """Test basic code fingerprinting."""
@@ -67,7 +72,10 @@ class TestPatternFingerprinter:
 
     def test_fingerprint_issue_context(self):
         """Test fingerprinting issue context."""
-        source_code = "def function1():\n    pass\n\ndef function2():\n    x = 1\n    y = 2\n    z = x + y\n    return z"
+        source_code = (
+            "def function1():\n    pass\n\n"
+            "def function2():\n    x = 1\n    y = 2\n    z = x + y\n    return z"
+        )
         issue = CodeIssue(
             category=IssueCategory.CODE_SMELL,
             level=IssueLevel.WARNING,
@@ -86,7 +94,10 @@ class TestPatternFingerprinter:
 
     def test_fingerprint_issue_context_different_issues(self):
         """Test that different issues produce different hashes."""
-        source_code = "def function1():\n    pass\n\ndef function2():\n    x = 1\n    y = 2\n    z = x + y\n    return z"
+        source_code = (
+            "def function1():\n    pass\n\n"
+            "def function2():\n    x = 1\n    y = 2\n    z = x + y\n    return z"
+        )
         issue1 = CodeIssue(
             category=IssueCategory.CODE_SMELL,
             level=IssueLevel.WARNING,

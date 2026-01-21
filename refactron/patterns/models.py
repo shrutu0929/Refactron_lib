@@ -5,7 +5,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 
 @dataclass
@@ -88,8 +88,17 @@ class PatternMetric:
         issue_resolution_count: int,
         before_metrics: Dict[str, float],
         after_metrics: Dict[str, float],
-    ) -> None:
-        """Update metrics with new evaluation data."""
+    ) -> "PatternMetric":
+        """
+        Update metrics with new evaluation data (in-place mutation).
+
+        Returns:
+            self to enable method chaining
+
+        Note:
+            This method modifies the object in-place. The return value
+            is provided to enable method chaining.
+        """
         self.total_evaluations += 1
         # Calculate weighted average
         weight = 1.0 / self.total_evaluations
@@ -99,28 +108,26 @@ class PatternMetric:
         self.maintainability_improvement = (
             1 - weight
         ) * self.maintainability_improvement + weight * maintainability_improvement
-        self.lines_of_code_change = (
-            1 - weight
-        ) * self.lines_of_code_change + weight * lines_of_code_change
+        # Use integer arithmetic with explicit rounding for lines_of_code_change
+        self.lines_of_code_change = int(
+            round((1 - weight) * self.lines_of_code_change + weight * lines_of_code_change)
+        )
         self.issue_resolution_count += issue_resolution_count
 
-        # Merge metrics dictionaries (optimized: single dict lookup per key)
-        one_minus_weight = 1 - weight
+        # Merge metrics dictionaries
         for key, value in before_metrics.items():
             if key in self.before_metrics:
-                self.before_metrics[key] = (
-                    one_minus_weight * self.before_metrics[key] + weight * value
-                )
+                self.before_metrics[key] = (1 - weight) * self.before_metrics[key] + weight * value
             else:
                 self.before_metrics[key] = value
 
         for key, value in after_metrics.items():
             if key in self.after_metrics:
-                self.after_metrics[key] = (
-                    one_minus_weight * self.after_metrics[key] + weight * value
-                )
+                self.after_metrics[key] = (1 - weight) * self.after_metrics[key] + weight * value
             else:
                 self.after_metrics[key] = value
+
+        return self
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert metrics to dictionary for serialization."""

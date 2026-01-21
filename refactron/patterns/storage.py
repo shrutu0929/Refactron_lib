@@ -23,6 +23,7 @@ class PatternStorage:
     FEEDBACK_FILE = "feedback.json"
     PROJECT_PROFILES_FILE = "project_profiles.json"
     PATTERN_METRICS_FILE = "pattern_metrics.json"
+    MAX_PROJECT_ROOT_SEARCH_DEPTH = 5  # Maximum directory levels to search for project root
 
     def __init__(self, storage_dir: Optional[Path] = None):
         """
@@ -70,8 +71,8 @@ class PatternStorage:
         """
         current = Path.cwd().resolve()
 
-        # Check up to 5 levels up
-        for _ in range(5):
+        # Check up to MAX_PROJECT_ROOT_SEARCH_DEPTH levels up
+        for _ in range(self.MAX_PROJECT_ROOT_SEARCH_DEPTH):
             if any(
                 (current / marker).exists()
                 for marker in [".git", ".refactron.yaml", "setup.py", "pyproject.toml"]
@@ -101,6 +102,10 @@ class PatternStorage:
     ) -> List[RefactoringFeedback]:
         """
         Load feedback records from storage.
+
+        Note: For large feedback datasets, this filters in Python after loading
+        all records. Consider implementing pagination or separate indices if
+        performance becomes an issue with very large datasets.
 
         Args:
             pattern_id: Optional pattern ID to filter by
@@ -248,7 +253,24 @@ class PatternStorage:
             if project_id in profiles:
                 profile = profiles[project_id]
                 # Update path if it changed (same project, different location)
-                if str(profile.project_path.resolve()) != str(project_path.resolve()):
+                # Use filesystem-aware comparison when possible
+                paths_differ = True
+                try:
+                    if profile.project_path.exists() and project_path.exists():
+                        # Use filesystem-aware comparison when both paths exist
+                        paths_differ = not profile.project_path.samefile(project_path)
+                    else:
+                        # Fall back to resolved path string comparison
+                        paths_differ = str(profile.project_path.resolve()) != str(
+                            project_path.resolve()
+                        )
+                except OSError:
+                    # If samefile/exists checks fail, fall back to resolved string comparison
+                    paths_differ = str(profile.project_path.resolve()) != str(
+                        project_path.resolve()
+                    )
+
+                if paths_differ:
                     profile.project_path = project_path
                     self.save_project_profile(profile)
                 return profile
@@ -295,16 +317,29 @@ class PatternStorage:
     # Private methods for file I/O
 
     def _load_patterns_dict(self) -> Dict[str, RefactoringPattern]:
-        """Load patterns from file."""
+        """
+        Load patterns from file.
+
+        Note: This method performs basic JSON validation but does not
+        validate against maliciously crafted data. Ensure storage directory
+        has appropriate access controls in production environments.
+        """
         if not self.patterns_file.exists():
             return {}
 
         try:
             with open(self.patterns_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
+                # Validate basic structure
+                if not isinstance(data, dict):
+                    logger.warning(
+                        f"Invalid patterns file structure: expected dict, got {type(data)}"
+                    )
+                    return {}
                 return {
                     pattern_id: RefactoringPattern.from_dict(pattern_data)
                     for pattern_id, pattern_data in data.items()
+                    if isinstance(pattern_data, dict)  # Skip invalid entries
                 }
         except (json.JSONDecodeError, IOError, KeyError) as e:
             logger.warning(f"Failed to load patterns from {self.patterns_file}: {e}")

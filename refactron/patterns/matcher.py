@@ -2,8 +2,8 @@
 
 import logging
 import math
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Tuple
 
 from refactron.patterns.models import ProjectPatternProfile, RefactoringPattern
 from refactron.patterns.storage import PatternStorage
@@ -14,19 +14,20 @@ logger = logging.getLogger(__name__)
 class PatternMatcher:
     """Matches code patterns against learned patterns with scoring."""
 
-    def __init__(self, storage: PatternStorage):
+    def __init__(self, storage: PatternStorage, cache_ttl_seconds: int = 300):
         """
         Initialize pattern matcher.
 
         Args:
             storage: PatternStorage instance for loading patterns
+            cache_ttl_seconds: Cache time-to-live in seconds (default: 300 seconds / 5 minutes)
         """
         self.storage = storage
         self._patterns_cache: Optional[Dict[str, RefactoringPattern]] = None
         self._hash_index: Optional[Dict[str, List[RefactoringPattern]]] = None
         self._cache_timestamp: Optional[datetime] = None
         self._similarity_threshold = 0.8  # Default similarity threshold for fuzzy matching
-        self._cache_ttl_seconds = 300  # 5 minutes cache TTL
+        self._cache_ttl_seconds = cache_ttl_seconds  # Cache TTL
 
     def find_similar_patterns(
         self,
@@ -47,15 +48,18 @@ class PatternMatcher:
         Returns:
             List of similar patterns, sorted by acceptance rate
         """
-        # Validate hash format (SHA256 produces 64 char hex, but allow shorter for testing/backwards compat)
+        # Validate hash format (SHA256 produces 64 char hex, but allow shorter
+        # for testing/backwards compatibility)
         if not code_hash:
             logger.warning("Empty code_hash provided")
             return []
 
-        # Warn if hash doesn't look like SHA256 (but still allow it for backward compatibility)
+        # Warn if hash doesn't look like SHA256 (but still allow it for
+        # backward compatibility)
         if len(code_hash) != 64:
             logger.debug(
-                f"Non-standard hash length ({len(code_hash)} chars, expected 64): {code_hash[:16]}..."
+                f"Non-standard hash length ({len(code_hash)} chars, "
+                f"expected 64): {code_hash[:16]}..."
             )
 
         # Load patterns and index
@@ -87,6 +91,16 @@ class PatternMatcher:
     ) -> float:
         """
         Calculate score for pattern suggestion.
+
+        The scoring algorithm applies multiple bonuses multiplicatively:
+        - Project weight: 0.0-1.0 (disabled patterns get 0.0)
+        - Enabled pattern bonus: 1.2x (20% bonus)
+        - Recency bonus: up to 1.2x (20% bonus for patterns seen in last 30 days)
+        - Frequency bonus: up to 1.3x (30% bonus based on log scale of occurrences)
+        - Benefit bonus: up to 1.15x (15% bonus based on average_benefit_score)
+
+        These bonuses can compound to exceed 1.0, but the final score is normalized
+        to the range [0.0, 1.0] using min/max clipping.
 
         Args:
             pattern: Pattern to score
@@ -139,7 +153,7 @@ class PatternMatcher:
         operation_type: Optional[str] = None,
         project_profile: Optional[ProjectPatternProfile] = None,
         limit: int = 10,
-    ) -> List[tuple[RefactoringPattern, float]]:
+    ) -> List[Tuple[RefactoringPattern, float]]:
         """
         Find best matching patterns with scores.
 
@@ -196,16 +210,19 @@ class PatternMatcher:
         Returns:
             Dictionary mapping pattern_hash to list of patterns with that hash
         """
-        # Invalidate index if patterns cache was invalidated
-        patterns = self._load_patterns()
-
-        # Rebuild index if cache was reloaded or index doesn't exist
-        now = datetime.now(timezone.utc)
-        if (
+        # Check if we need to rebuild before loading patterns (to detect cache reload)
+        need_rebuild = (
             self._hash_index is None
             or self._cache_timestamp is None
-            or (now - self._cache_timestamp).total_seconds() < 1
-        ):  # Just reloaded
+            or (datetime.now(timezone.utc) - self._cache_timestamp).total_seconds()
+            >= self._cache_ttl_seconds
+        )
+
+        # Load patterns (may update cache if stale)
+        patterns = self._load_patterns()
+
+        # Rebuild index if needed
+        if need_rebuild:
             self._hash_index = {}
             for pattern in patterns.values():
                 if pattern.pattern_hash not in self._hash_index:
