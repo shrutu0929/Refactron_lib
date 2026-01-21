@@ -234,18 +234,15 @@ def _print_refactor_messages(summary: dict, preview: bool) -> None:
         console.print("\n[green]✅ Refactoring completed! Don't forget to test your code.[/green]")
 
 
-def _collect_feedback_interactive(
-    refactron: Refactron, result: RefactorResult, collect_feedback: bool = False
-) -> None:
+def _collect_feedback_interactive(refactron: Refactron, result: RefactorResult) -> None:
     """
     Collect feedback from user interactively for each refactoring operation.
 
     Args:
         refactron: Refactron instance to record feedback
         result: RefactorResult containing operations
-        collect_feedback: If True, prompt for feedback
     """
-    if not collect_feedback or not result.operations:
+    if not result.operations:
         return
 
     console.print("\n[bold]💬 Feedback Collection (Optional)[/bold]")
@@ -265,7 +262,7 @@ def _collect_feedback_interactive(
             continue
 
         reason = None
-        if action in ("r", "a"):
+        if action in ("r", "a", "i"):
             reason = click.prompt(
                 "Reason (optional, press Enter to skip)",
                 default="",
@@ -579,7 +576,7 @@ def refactor(
             _record_applied_operations(refactron, result)
         elif feedback:
             # Interactive feedback collection in preview mode
-            _collect_feedback_interactive(refactron, result, collect_feedback=True)
+            _collect_feedback_interactive(refactron, result)
 
     if session_id and not preview:
         console.print("\n[dim]💡 Tip: Run 'refactron rollback' to undo these changes[/dim]")
@@ -630,6 +627,22 @@ def feedback(operation_id: str, action: str, reason: Optional[str], config: Opti
 
     # Record feedback
     try:
+        # Check if operation_id exists in recent feedback (for validation)
+        if refactron.pattern_storage:
+            existing_feedbacks = refactron.pattern_storage.load_feedback()
+            operation_exists = any(
+                f.operation_id == operation_id for f in existing_feedbacks
+            )
+            if not operation_exists:
+                console.print(
+                    f"[yellow]⚠️  Warning: Operation ID '{operation_id}' "
+                    "not found in recent operations.[/yellow]"
+                )
+                console.print(
+                    "[dim]This may be a new or mistyped operation ID. "
+                    "Feedback will still be recorded.[/dim]\n"
+                )
+
         refactron.record_feedback(
             operation_id=operation_id,
             action=action.lower(),

@@ -637,9 +637,13 @@ class Refactron:
 
                 # Try to detect project root
                 try:
-                    project_path = self._detect_project_root(file_path)
-                except Exception:
-                    pass
+                    project_path = self.detect_project_root(file_path)
+                except Exception as e:
+                    logger.debug(
+                        "Failed to detect project root for %s: %s",
+                        file_path,
+                        e,
+                    )
 
             # Create feedback record
             feedback = RefactoringFeedback.create(
@@ -659,15 +663,20 @@ class Refactron:
         except Exception as e:
             logger.warning(f"Failed to record feedback: {e}", exc_info=True)
 
-    def _detect_project_root(self, file_path: Path) -> Optional[Path]:
+    def detect_project_root(self, file_path: Path) -> Path:
         """
-        Detect project root by looking for common markers.
+        Detect project root by looking for common markers in parent directories.
+
+        The search walks up the directory tree from the file's parent directory,
+        checking for common project markers up to a fixed maximum depth.
 
         Args:
-            file_path: Path to a file in the project
+            file_path: Path to a file in the project.
 
         Returns:
-            Path to project root, or None if not found
+            The path to the project root if any of the known markers are found
+            within the search depth limit, or the file's parent directory if no
+            markers are detected.
         """
         current = file_path.parent.resolve()
 
