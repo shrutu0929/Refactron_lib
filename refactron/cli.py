@@ -630,9 +630,7 @@ def feedback(operation_id: str, action: str, reason: Optional[str], config: Opti
         # Check if operation_id exists in recent feedback (for validation)
         if refactron.pattern_storage:
             existing_feedbacks = refactron.pattern_storage.load_feedback()
-            operation_exists = any(
-                f.operation_id == operation_id for f in existing_feedbacks
-            )
+            operation_exists = any(f.operation_id == operation_id for f in existing_feedbacks)
             if not operation_exists:
                 console.print(
                     f"[yellow]⚠️  Warning: Operation ID '{operation_id}' "
