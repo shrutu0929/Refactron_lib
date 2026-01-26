@@ -170,12 +170,14 @@ class TestRefactronFeedbackIntegration:
             pytest.skip("Pattern fingerprinter not initialized")
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("""
+            f.write(
+                """
 def calculate(price):
     if price > 1000:
         return price * 0.15
     return 0
-""")
+"""
+            )
             temp_path = Path(f.name)
 
         try:
@@ -195,12 +197,14 @@ def calculate(price):
         refactron = Refactron(config)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("""
+            f.write(
+                """
 def calculate(price):
     if price > 1000:
         return price * 0.15
     return 0
-""")
+"""
+            )
             temp_path = Path(f.name)
 
         try:
@@ -331,12 +335,14 @@ class TestFeedbackCLIIntegration:
         runner = CliRunner()
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("""
+            f.write(
+                """
 def calculate(price):
     if price > 1000:
         return price * 0.15
     return 0
-""")
+"""
+            )
             temp_path = f.name
 
         try:
