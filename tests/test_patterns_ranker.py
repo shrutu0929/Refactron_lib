@@ -18,25 +18,26 @@ class TestRefactoringRanker:
 
     def test_init_requires_all_dependencies(self):
         """Test that ranker requires all dependencies."""
-        storage = PatternStorage()
-        matcher = PatternMatcher(storage)
-        fingerprinter = PatternFingerprinter()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage = PatternStorage(storage_dir=Path(tmpdir))
+            matcher = PatternMatcher(storage)
+            fingerprinter = PatternFingerprinter()
 
-        # Should succeed with all dependencies
-        ranker = RefactoringRanker(storage, matcher, fingerprinter)
-        assert ranker.storage == storage
-        assert ranker.matcher == matcher
-        assert ranker.fingerprinter == fingerprinter
+            # Should succeed with all dependencies
+            ranker = RefactoringRanker(storage, matcher, fingerprinter)
+            assert ranker.storage == storage
+            assert ranker.matcher == matcher
+            assert ranker.fingerprinter == fingerprinter
 
-        # Should fail with None dependencies
-        with pytest.raises(ValueError, match="PatternStorage cannot be None"):
-            RefactoringRanker(None, matcher, fingerprinter)
+            # Should fail with None dependencies
+            with pytest.raises(ValueError, match="PatternStorage cannot be None"):
+                RefactoringRanker(None, matcher, fingerprinter)
 
-        with pytest.raises(ValueError, match="PatternMatcher cannot be None"):
-            RefactoringRanker(storage, None, fingerprinter)
+            with pytest.raises(ValueError, match="PatternMatcher cannot be None"):
+                RefactoringRanker(storage, None, fingerprinter)
 
-        with pytest.raises(ValueError, match="PatternFingerprinter cannot be None"):
-            RefactoringRanker(storage, matcher, None)
+            with pytest.raises(ValueError, match="PatternFingerprinter cannot be None"):
+                RefactoringRanker(storage, matcher, None)
 
     def test_rank_operations_empty_list(self):
         """Test ranking empty operation list."""
@@ -340,7 +341,7 @@ class TestRefactoringRanker:
             assert matched_pattern is not None
             assert matched_pattern.pattern_id == pattern.pattern_id
 
-    def test_rank_operations_handles_fingerprint_failure(self):
+    def test_rank_operations_handles_fingerprint_failure(self, monkeypatch):
         """Test that ranking handles fingerprint failures gracefully."""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage = PatternStorage(storage_dir=Path(tmpdir))
@@ -348,13 +349,19 @@ class TestRefactoringRanker:
             fingerprinter = PatternFingerprinter()
             ranker = RefactoringRanker(storage, matcher, fingerprinter)
 
-            # Operation with invalid code (will fail fingerprinting)
+            # Force fingerprinting to fail
+            def _fail_fingerprint(_code: str) -> str:
+                raise ValueError("fingerprint failure for testing")
+
+            monkeypatch.setattr(ranker.fingerprinter, "fingerprint_code", _fail_fingerprint)
+
+            # Operation that will trigger fingerprinting failure
             operation = RefactoringOperation(
                 operation_type="extract_method",
                 file_path=Path("test.py"),
                 line_number=10,
                 description="Test",
-                old_code="",  # Empty code might cause issues
+                old_code="def test(): pass",
                 new_code="def new(): pass",
                 risk_score=0.5,
             )

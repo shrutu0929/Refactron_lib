@@ -89,7 +89,9 @@ class RefactoringRanker:
                     f"Failed to calculate score for operation {operation.operation_id}: {e}"
                 )
                 # Default score based on risk (lower risk = higher default score)
-                default_score = max(0.0, 1.0 - operation.risk_score)
+                # Clamp to [0.0, 1.0] to satisfy documented score range.
+                default_score = 1.0 - operation.risk_score
+                default_score = max(0.0, min(1.0, default_score))
                 ranked_operations.append((operation, default_score))
 
         # Sort by score descending (highest score first)
@@ -123,8 +125,9 @@ class RefactoringRanker:
                 logger.debug(
                     f"Failed to fingerprint code for operation {operation.operation_id}: {e}"
                 )
-                # Fallback: score based only on risk
-                return max(0.0, 1.0 - operation.risk_score)
+                # Fallback: score based only on risk, clamped to [0.0, 1.0]
+                fallback_score = 1.0 - operation.risk_score
+                return max(0.0, min(1.0, fallback_score))
 
         # Find matching patterns
         matching_patterns = self.matcher.find_similar_patterns(
@@ -135,9 +138,11 @@ class RefactoringRanker:
 
         if not matching_patterns:
             # No matching patterns found - use risk-based scoring
-            base_score = max(0.0, 1.0 - operation.risk_score)
-            # Apply slight penalty for unknown patterns
-            return base_score * 0.8
+            base_score = 1.0 - operation.risk_score
+            base_score = max(0.0, min(1.0, base_score))
+            # Apply slight penalty for unknown patterns and clamp result
+            unknown_pattern_score = base_score * 0.8
+            return max(0.0, min(1.0, unknown_pattern_score))
 
         # Use best matching pattern for scoring
         best_pattern = matching_patterns[0]
@@ -251,8 +256,9 @@ class RefactoringRanker:
 
             except Exception as e:
                 logger.warning(f"Failed to rank operation {operation.operation_id}: {e}")
-                default_score = max(0.0, 1.0 - operation.risk_score)
-                ranked_with_patterns.append((operation, default_score, None))
+                fallback_score = 1.0 - operation.risk_score
+                fallback_score = max(0.0, min(1.0, fallback_score))
+                ranked_with_patterns.append((operation, fallback_score, None))
 
         # Sort by score descending
         ranked_with_patterns.sort(key=lambda x: x[1], reverse=True)
