@@ -126,10 +126,16 @@ class Refactron:
         try:
             self.pattern_storage = PatternStorage()
             self.pattern_fingerprinter = PatternFingerprinter()
+            from refactron.patterns.learner import PatternLearner
+
+            self.pattern_learner = PatternLearner(
+                storage=self.pattern_storage, fingerprinter=self.pattern_fingerprinter
+            )
         except Exception as e:
             logger.warning(f"Failed to initialize pattern learning system: {e}")
             self.pattern_storage = None
             self.pattern_fingerprinter = None
+            self.pattern_learner = None
 
         self._initialize_analyzers()
         self._initialize_refactorers()
@@ -630,10 +636,22 @@ class Refactron:
             operation_type = "unknown"
             file_path = Path(".")
 
+            # Prepare metadata for operation reconstruction if needed
+            operation_metadata = {}
             if operation:
                 operation_type = operation.operation_type
                 file_path = operation.file_path
                 code_pattern_hash = operation.metadata.get("code_pattern_hash")
+
+                # Store operation details in metadata for later reconstruction
+                # (useful if learning fails initially and needs to be retried)
+                operation_metadata = {
+                    "old_code": operation.old_code,
+                    "new_code": operation.new_code,
+                    "line_number": operation.line_number,
+                    "description": operation.description,
+                    "risk_score": operation.risk_score,
+                }
 
                 # Try to detect project root
                 try:
@@ -654,11 +672,25 @@ class Refactron:
                 code_pattern_hash=code_pattern_hash,
                 project_path=project_path,
                 reason=reason,
+                metadata=operation_metadata,
             )
 
             # Save feedback
             self.pattern_storage.save_feedback(feedback)
             logger.debug(f"Recorded feedback for operation {operation_id}: {action}")
+
+            # Automatically learn from feedback if operation provided
+            if operation and self.pattern_learner:
+                try:
+                    pattern_id = self.pattern_learner.learn_from_feedback(operation, feedback)
+                    if pattern_id:
+                        logger.debug(
+                            f"Learned pattern {pattern_id} from feedback for "
+                            f"operation {operation_id}"
+                        )
+                except Exception as e:
+                    # Don't fail feedback recording if learning fails
+                    logger.debug(f"Learning from feedback failed (non-critical): {e}")
 
         except Exception as e:
             logger.warning(f"Failed to record feedback: {e}", exc_info=True)
