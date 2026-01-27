@@ -68,15 +68,15 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install black isort mypy
+        pip install black==24.10.0 isort mypy
 
     - name: Check formatting with Black
       run: |
-        black --check refactron tests
+        black --check --line-length=100 refactron tests
 
     - name: Check import sorting with isort
       run: |
-        isort --check-only --profile black refactron tests
+        isort --check-only --profile black --line-length=100 refactron tests
 
   security:
     name: Security Scan
