@@ -147,11 +147,10 @@ class Refactron:
                         fingerprinter=self.pattern_fingerprinter,
                     )
 
-                # Matcher is needed for both learning and ranking
-                self.pattern_matcher = PatternMatcher(storage=self.pattern_storage)
-
-                # Initialize ranker only if ranking is enabled
+                # Matcher is only needed when ranking is enabled
                 if self.config.pattern_ranking_enabled:
+                    self.pattern_matcher = PatternMatcher(storage=self.pattern_storage)
+                    # Initialize ranker only if ranking is enabled
                     self.pattern_ranker = RefactoringRanker(
                         storage=self.pattern_storage,
                         matcher=self.pattern_matcher,

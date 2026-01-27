@@ -480,7 +480,10 @@ class TestPatternLearningConfigIntegration:
 
         assert refactron.pattern_storage is not None
         assert refactron.pattern_fingerprinter is not None
+        # With defaults (learning=True, ranking=True), all components should be initialized
+        assert refactron.pattern_learner is not None
         assert refactron.pattern_matcher is not None
+        assert refactron.pattern_ranker is not None
 
     def test_pattern_learning_enabled_but_learning_disabled(self, temp_storage_dir):
         """Test that learner is None when learning is disabled."""
@@ -493,8 +496,10 @@ class TestPatternLearningConfigIntegration:
 
         assert refactron.pattern_storage is not None
         assert refactron.pattern_fingerprinter is not None
-        assert refactron.pattern_matcher is not None
         assert refactron.pattern_learner is None
+        # Ranking defaults to True, so matcher and ranker should be initialized
+        assert refactron.pattern_matcher is not None
+        assert refactron.pattern_ranker is not None
 
     def test_pattern_ranking_disabled(self, temp_storage_dir):
         """Test that ranker is None when ranking is disabled."""
@@ -507,7 +512,10 @@ class TestPatternLearningConfigIntegration:
 
         assert refactron.pattern_storage is not None
         assert refactron.pattern_fingerprinter is not None
-        assert refactron.pattern_matcher is not None
+        # Learning defaults to True, so learner should be initialized
+        assert refactron.pattern_learner is not None
+        # Ranking is disabled, so matcher and ranker should be None
+        assert refactron.pattern_matcher is None
         assert refactron.pattern_ranker is None
 
     def test_record_feedback_respects_config(self, temp_storage_dir):
