@@ -126,10 +126,16 @@ class Refactron:
         try:
             self.pattern_storage = PatternStorage()
             self.pattern_fingerprinter = PatternFingerprinter()
+            from refactron.patterns.learner import PatternLearner
+
+            self.pattern_learner = PatternLearner(
+                storage=self.pattern_storage, fingerprinter=self.pattern_fingerprinter
+            )
         except Exception as e:
             logger.warning(f"Failed to initialize pattern learning system: {e}")
             self.pattern_storage = None
             self.pattern_fingerprinter = None
+            self.pattern_learner = None
 
         self._initialize_analyzers()
         self._initialize_refactorers()
@@ -659,6 +665,19 @@ class Refactron:
             # Save feedback
             self.pattern_storage.save_feedback(feedback)
             logger.debug(f"Recorded feedback for operation {operation_id}: {action}")
+
+            # Automatically learn from feedback if operation provided
+            if operation and self.pattern_learner:
+                try:
+                    pattern_id = self.pattern_learner.learn_from_feedback(operation, feedback)
+                    if pattern_id:
+                        logger.debug(
+                            f"Learned pattern {pattern_id} from feedback for "
+                            f"operation {operation_id}"
+                        )
+                except Exception as e:
+                    # Don't fail feedback recording if learning fails
+                    logger.debug(f"Learning from feedback failed (non-critical): {e}")
 
         except Exception as e:
             logger.warning(f"Failed to record feedback: {e}", exc_info=True)
