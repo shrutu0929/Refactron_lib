@@ -10,6 +10,7 @@ from refactron.patterns.models import (
     RefactoringFeedback,
     RefactoringPattern,
 )
+from refactron.patterns.ranker import RefactoringRanker
 from refactron.patterns.storage import PatternStorage
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "PatternMatcher",
     "PatternStorage",
     "LearningService",
+    "RefactoringRanker",
     "RefactoringFeedback",
     "RefactoringPattern",
     "PatternMetric",

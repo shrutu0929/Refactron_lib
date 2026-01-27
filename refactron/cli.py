@@ -251,6 +251,9 @@ def _collect_feedback_interactive(refactron: Refactron, result: RefactorResult) 
     for op in result.operations:
         console.print(f"\n[cyan]Operation ID: {op.operation_id}[/cyan]")
         console.print(f"[dim]Type: {op.operation_type} at {op.file_path}:{op.line_number}[/dim]")
+        ranking_score = result.get_ranking_score(op)
+        if ranking_score > 0:
+            console.print(f"[dim]Ranking Score: {ranking_score:.3f}[/dim]")
 
         action = click.prompt(
             "Your feedback? (a)ccepted, (r)ejected, (i)gnored, or (s)kip",
@@ -567,6 +570,11 @@ def refactor(
     _print_refactor_messages(summary, preview)
 
     if result.operations:
+        # Show ranking info if available
+        ranked_count = sum(1 for op in result.operations if "ranking_score" in op.metadata)
+        if ranked_count > 0:
+            console.print(f"[dim]📊 {ranked_count} operations ranked by learned patterns[/dim]\n")
+
         console.print("[bold]Refactoring Operations:[/bold]\n")
         console.print(result.show_diff())
 
