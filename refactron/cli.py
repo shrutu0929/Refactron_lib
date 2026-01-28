@@ -852,8 +852,15 @@ def login(api_base_url: str, no_browser: bool, timeout: int, force: bool) -> Non
         console.print("[dim]Opening browser...[/dim]")
         try:
             webbrowser.open(login_url, new=2)
-        except Exception:
-            pass
+        except Exception as e:
+            console.print(
+                Panel(
+                    f"Could not open your browser automatically: {e}\n"
+                    "Please open the above URL manually in your browser.",
+                    title="Browser Warning",
+                    border_style="yellow",
+                )
+            )
 
     try:
         with console.status("[bold blue]Waiting for authorization...[/bold blue]", spinner="dots"):
