@@ -1,13 +1,26 @@
 """Command-line interface for Refactron."""
 
 import logging
+import platform
+import sys
+import webbrowser
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlencode
 
 import click
+import requests  # type: ignore
 import yaml
+from rich import box
+from rich.align import Align
 from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.table import Table
+from rich.text import Text
+from rich.theme import Theme
 
 from refactron import Refactron
 from refactron.autofix.engine import AutoFixEngine
@@ -15,12 +28,125 @@ from refactron.autofix.models import FixRiskLevel
 from refactron.core.analysis_result import AnalysisResult
 from refactron.core.backup import BackupRollbackSystem
 from refactron.core.config import RefactronConfig
+from refactron.core.credentials import (
+    RefactronCredentials,
+    credentials_path,
+    delete_credentials,
+    load_credentials,
+    save_credentials,
+)
+from refactron.core.device_auth import (
+    DEFAULT_API_BASE_URL,
+    poll_for_token,
+    start_device_authorization,
+)
 from refactron.core.exceptions import ConfigError
 from refactron.core.refactor_result import RefactorResult
 from refactron.patterns.storage import PatternStorage
 from refactron.patterns.tuner import RuleTuner
 
-console = Console()
+# Custom theme for a premium, modern look
+THEME = Theme(
+    {
+        "primary": "bold #5f5fff",  # A vibrant indigo/blue
+        "secondary": "#8a8a8a",  # Sleek gray
+        "success": "bold #00d787",  # Modern mint/green
+        "warning": "bold #ffaf00",  # Warm amber
+        "error": "bold #ff5f5f",  # Soft red
+        "info": "#5fafff",  # Sky blue
+        "highlight": "bold #ffffff",  # Bright white
+        "link": "underline #5f5fff",  # Link color
+        "panel.border": "#444444",  # Subtle border
+    }
+)
+
+console = Console(theme=THEME)
+
+
+@dataclass(frozen=True)
+class ApiKeyValidationResult:
+    ok: bool
+    message: str
+
+
+def _auth_banner(title: str) -> None:
+    """Display a premium, stylized banner."""
+    # Create a modern header with a tagline
+    grid = Table.grid(expand=True)
+    grid.add_column(justify="center", ratio=1)
+
+    # Title with gradient-like effect (simulated with colors)
+    header_text = Text()
+    header_text.append("Refactron", style="primary")
+    header_text.append(" | ", style="secondary")
+    header_text.append(title, style="highlight")
+
+    grid.add_row(header_text)
+    grid.add_row(Text("The Intelligent Code Refactoring Transformer", style="secondary italic"))
+
+    console.print(
+        Panel(
+            grid,
+            style="panel.border",
+            box=box.ROUNDED,
+            padding=(1, 2),
+            subtitle="[secondary]v1.0.1[/secondary]",
+            subtitle_align="right",
+        )
+    )
+
+
+def _validate_api_key(
+    api_base_url: str, api_key: str, timeout_seconds: int
+) -> ApiKeyValidationResult:
+    """
+    Validate an API key against the backend before saving it locally.
+
+    The key is sent as a Bearer token to a small verification endpoint. We keep
+    the UX actionable: distinguish invalid keys from missing endpoints and
+    connectivity issues.
+    """
+    url = f"{api_base_url.rstrip('/')}/api/auth/verify-key"
+    try:
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=timeout_seconds,
+        )
+    except requests.Timeout:
+        return ApiKeyValidationResult(
+            ok=False,
+            message="API key verification timed out. Is the API reachable?",
+        )
+    except requests.ConnectionError:
+        return ApiKeyValidationResult(
+            ok=False,
+            message="Could not reach the Refactron API. Is it running?",
+        )
+    except requests.RequestException:
+        return ApiKeyValidationResult(
+            ok=False,
+            message="API key verification failed due to a network error.",
+        )
+
+    if response.status_code == 200:
+        return ApiKeyValidationResult(ok=True, message="Verified.")
+    if response.status_code in (401, 403):
+        return ApiKeyValidationResult(ok=False, message="Invalid API key.")
+    if response.status_code == 404:
+        return ApiKeyValidationResult(
+            ok=False,
+            message="API key verification endpoint is missing (404).",
+        )
+    if 500 <= response.status_code <= 599:
+        return ApiKeyValidationResult(
+            ok=False,
+            message=f"API key verification failed (server error {response.status_code}).",
+        )
+    return ApiKeyValidationResult(
+        ok=False,
+        message=f"API key verification failed (HTTP {response.status_code}).",
+    )
 
 
 def _setup_logging(verbose: bool = False) -> None:
@@ -41,19 +167,19 @@ def _load_config(
     """Load configuration from file or use default."""
     try:
         if config_path:
-            console.print(f"[dim]📄 Loading config from: {config_path}[/dim]")
+            console.print(f"[dim]Loading config from: {config_path}[/dim]")
             if profile or environment:
                 env_display = environment or profile
-                console.print(f"[dim]🎯 Using profile/environment: {env_display}[/dim]")
+                console.print(f"[dim]Using profile/environment: {env_display}[/dim]")
             return RefactronConfig.from_file(Path(config_path), profile, environment)
         return RefactronConfig.default()
     except ConfigError as e:
-        console.print(f"[red]❌ Configuration Error: {e}[/red]")
+        console.print(f"[red]Configuration Error: {e}[/red]")
         if e.recovery_suggestion:
-            console.print(f"[yellow]💡 {e.recovery_suggestion}[/yellow]")
+            console.print(f"[yellow]Tip: {e.recovery_suggestion}[/yellow]")
         raise SystemExit(1)
     except Exception as e:
-        console.print(f"[red]❌ Unexpected error loading configuration: {e}[/red]")
+        console.print(f"[red]Unexpected error loading configuration: {e}[/red]")
         raise SystemExit(1)
 
 
@@ -61,7 +187,7 @@ def _validate_path(target: str) -> Path:
     """Validate target path exists."""
     target_path = Path(target)
     if not target_path.exists():
-        console.print(f"[red]❌ Error: Path does not exist: {target}[/red]")
+        console.print(f"[red]Error: Path does not exist: {target}[/red]")
         raise SystemExit(1)
     return target_path
 
@@ -70,24 +196,49 @@ def _print_file_count(target_path: Path) -> None:
     """Print count of Python files if target is directory."""
     if target_path.is_dir():
         py_files = list(target_path.rglob("*.py"))
-        console.print(f"[dim]📁 Found {len(py_files)} Python file(s) to analyze[/dim]\n")
+        console.print(f"[dim]Found {len(py_files)} Python file(s) to analyze[/dim]\n")
 
 
 def _create_summary_table(summary: dict) -> Table:
     """Create analysis summary table."""
-    table = Table(title="Analysis Summary", show_header=True, header_style="bold magenta")
-    table.add_column("Metric", style="cyan")
-    table.add_column("Value", justify="right", style="green")
+    table = Table(
+        title="Analysis Summary",
+        show_header=True,
+        header_style="primary",
+        box=box.ROUNDED,
+        border_style="panel.border",
+        expand=True,
+    )
+    table.add_column("Metric", style="info")
+    table.add_column("Value", justify="right", style="highlight")
 
     table.add_row("Files Found", str(summary["total_files"]))
     table.add_row("Files Analyzed", str(summary["files_analyzed"]))
     if summary.get("files_failed", 0) > 0:
-        table.add_row("Files Failed", str(summary["files_failed"]))
-    table.add_row("Total Issues", str(summary["total_issues"]))
-    table.add_row("🔴 Critical", str(summary["critical"]))
-    table.add_row("❌ Errors", str(summary["errors"]))
-    table.add_row("⚡ Warnings", str(summary["warnings"]))
-    table.add_row("ℹ️  Info", str(summary["info"]))
+        table.add_row("Files Failed", str(summary["files_failed"]), style="error")
+
+    table.add_row(
+        "Total Issues",
+        str(summary["total_issues"]),
+        style="warning" if summary["total_issues"] > 0 else "success",
+    )
+
+    if summary["critical"] > 0:
+        table.add_row("Critical", str(summary["critical"]), style="error bold")
+    else:
+        table.add_row("Critical", "0", style="secondary")
+
+    table.add_row(
+        "Errors", str(summary["errors"]), style="error" if summary["errors"] > 0 else "secondary"
+    )
+    table.add_row(
+        "Warnings",
+        str(summary["warnings"]),
+        style="warning" if summary["warnings"] > 0 else "secondary",
+    )
+    table.add_row(
+        "Info", str(summary["info"]), style="info" if summary["info"] > 0 else "secondary"
+    )
 
     return table
 
@@ -144,76 +295,94 @@ def _print_status_messages(summary: dict) -> None:
     """Print status messages based on analysis results."""
     if summary.get("files_failed", 0) > 0:
         console.print(
-            f"[yellow]⚠️  {summary['files_failed']} file(s) failed analysis "
-            f"and were skipped[/yellow]"
+            f"[warning]{summary['files_failed']} file(s) failed analysis "
+            f"and were skipped[/warning]"
         )
 
     if summary["total_issues"] == 0 and summary.get("files_failed", 0) == 0:
-        console.print("[green]✨ Excellent! No issues found.[/green]")
+        console.print(
+            Panel(
+                "[success]Excellent! No issues found.[/success]",
+                box=box.ROUNDED,
+                border_style="success",
+            )
+        )
     elif summary["total_issues"] == 0 and summary.get("files_failed", 0) > 0:
         console.print(
-            "[yellow]⚠️  No issues found in analyzed files, but some files failed.[/yellow]"
+            "[warning]No issues found in analyzed files, but some files failed.[/warning]"
         )
     elif summary["critical"] > 0:
         console.print(
-            f"[red]⚠️  Found {summary['critical']} critical issue(s) that need immediate "
-            f"attention![/red]"
+            f"[error]Found {summary['critical']} critical issue(s) that need immediate "
+            f"attention![/error]"
         )
 
 
 def _print_detailed_issues(result: AnalysisResult) -> None:
     """Print detailed issues list."""
-    console.print("[bold]Detailed Issues:[/bold]\n")
-    level_icons = {
-        "critical": "🔴",
-        "error": "❌",
-        "warning": "⚡",
-        "info": "ℹ️",
-    }
+    console.print("[primary bold]Detailed Issues:[/primary bold]\n")
 
     for issue in result.all_issues:
-        icon = level_icons.get(issue.level.value, "•")
-        console.print(f"{icon} {issue}")
+        style = (
+            "error"
+            if issue.level.value in ("critical", "error")
+            else "warning" if issue.level.value == "warning" else "info"
+        )
+        level_label = f"[{issue.level.value.upper()}]"
+
+        console.print(f"[{style}]{level_label} {issue}[/{style}]")
         if issue.suggestion:
-            console.print(f"   [dim]💡 {issue.suggestion}[/dim]")
+            console.print(f"   [secondary]Tip: {issue.suggestion}[/secondary]")
         console.print()
 
 
 def _print_helpful_tips(summary: dict, detailed: bool) -> None:
     """Print helpful tips based on results."""
     if summary["total_issues"] > 0 and not detailed:
-        console.print("[dim]💡 Tip: Use --detailed to see all issues[/dim]")
+        console.print("[secondary]Tip: Use --detailed to see all issues[/secondary]")
 
     if summary["total_issues"] > 5:
         console.print(
-            "[dim]💡 Tip: Run 'refactron refactor --preview' to see suggested fixes[/dim]"
+            "[secondary]Tip: Run 'refactron refactor --preview' to see suggested fixes[/secondary]"
         )
 
 
 def _print_refactor_filters(types: tuple) -> None:
     """Print operation type filters if specified."""
     if types:
-        console.print(f"[dim]🎯 Filtering for: {', '.join(types)}[/dim]\n")
+        console.print(f"[secondary]Filtering for: {', '.join(types)}[/secondary]\n")
 
 
 def _confirm_apply_mode(preview: bool) -> None:
     """Warn and confirm if using --apply mode."""
     if not preview:
-        console.print("[yellow]⚠️  --apply mode will modify your files![/yellow]")
+        console.print("[warning]--apply mode will modify your files![/warning]")
         if not click.confirm("Continue?"):
             raise SystemExit(0)
 
 
 def _create_refactor_table(summary: dict) -> Table:
     """Create refactoring summary table."""
-    table = Table(title="Refactoring Summary", show_header=True, header_style="bold magenta")
-    table.add_column("Metric", style="cyan")
-    table.add_column("Value", justify="right", style="green")
+    table = Table(
+        title="Refactoring Summary",
+        show_header=True,
+        header_style="primary",
+        box=box.ROUNDED,
+        border_style="panel.border",
+        expand=True,
+    )
+    table.add_column("Metric", style="info")
+    table.add_column("Value", justify="right", style="highlight")
 
     table.add_row("Total Operations", str(summary["total_operations"]))
-    table.add_row("Safe Operations", str(summary["safe"]))
-    table.add_row("High Risk", str(summary["high_risk"]))
-    table.add_row("Applied", "✅ Yes" if summary["applied"] else "❌ No")
+    table.add_row("Safe Operations", str(summary["safe"]), style="success")
+
+    if summary["high_risk"] > 0:
+        table.add_row("High Risk", str(summary["high_risk"]), style="error bold")
+    else:
+        table.add_row("High Risk", "0", style="secondary")
+
+    table.add_row("Applied", "Yes" if summary["applied"] else "No", style="highlight")
 
     return table
 
@@ -221,19 +390,25 @@ def _create_refactor_table(summary: dict) -> Table:
 def _print_refactor_messages(summary: dict, preview: bool) -> None:
     """Print status messages for refactoring results."""
     if summary["total_operations"] == 0:
-        console.print("[green]✨ No refactoring opportunities found. Your code looks good![/green]")
+        console.print(
+            Panel(
+                "[success]No refactoring opportunities found. Your code looks good![/success]",
+                box=box.ROUNDED,
+                border_style="success",
+            )
+        )
     elif summary["high_risk"] > 0:
         console.print(
-            f"[yellow]⚠️  {summary['high_risk']} operation(s) are high-risk. Review "
-            f"carefully![/yellow]"
+            f"[warning]{summary['high_risk']} operation(s) are high-risk. Review "
+            f"carefully![/warning]"
         )
 
     if preview and summary["total_operations"] > 0:
-        console.print("\n[yellow]ℹ️  This is a preview. Use --apply to apply changes.[/yellow]")
-        console.print("[dim]💡 Tip: Review each change carefully before applying[/dim]")
+        console.print("\n[info]This is a preview. Use --apply to apply changes.[/info]")
+        console.print("[secondary]Tip: Review each change carefully before applying[/secondary]")
 
     if summary["total_operations"] > 0 and summary["applied"]:
-        console.print("\n[green]✅ Refactoring completed! Don't forget to test your code.[/green]")
+        console.print("\n[success]Refactoring completed! Don't forget to test your code.[/success]")
 
 
 def _collect_feedback_interactive(refactron: Refactron, result: RefactorResult) -> None:
@@ -247,7 +422,7 @@ def _collect_feedback_interactive(refactron: Refactron, result: RefactorResult) 
     if not result.operations:
         return
 
-    console.print("\n[bold]💬 Feedback Collection (Optional)[/bold]")
+    console.print("\n[bold]Feedback Collection (Optional)[/bold]")
     console.print("[dim]Help us learn from your feedback to improve suggestions![/dim]\n")
 
     for op in result.operations:
@@ -284,7 +459,7 @@ def _collect_feedback_interactive(refactron: Refactron, result: RefactorResult) 
             operation=op,
         )
 
-    console.print("\n[green]✅ Thank you for your feedback![/green]")
+    console.print("\n[success]Thank you for your feedback![/success]")
 
 
 def _record_applied_operations(refactron: Refactron, result: RefactorResult) -> None:
@@ -307,15 +482,556 @@ def _record_applied_operations(refactron: Refactron, result: RefactorResult) -> 
         )
 
 
-@click.group()
+def _run_startup_animation() -> None:
+    """Run a sleek startup animation with a big logo and system info."""
+    import random
+    import time
+
+    from rich.align import Align
+    from rich.live import Live
+    from rich.table import Table
+    from rich.text import Text
+
+    # Clear screen first
+    console.clear()
+
+    LOGO_LINES = [
+        r"██████╗ ███████╗███████╗ █████╗  ██████╗████████╗██████╗  ██████╗ ███╗   ██╗",
+        r"██╔══██╗██╔════╝██╔════╝██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗████╗  ██║",
+        r"██████╔╝█████╗  █████╗  ███████║██║        ██║   ██████╔╝██║   ██║██╔██╗ ██║",
+        r"██╔══██╗██╔══╝  ██╔══╝  ██╔══██║██║        ██║   ██╔══██╗██║   ██║██║╚██╗██║",
+        r"██║  ██║███████╗██║     ██║  ██║╚██████╗   ██║   ██║  ██║╚██████╔╝██║ ╚████║",
+        r"╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝",
+    ]
+
+    subtitle_text = "The Intelligent Code Refactoring Transformer"
+
+    TIPS = [
+        "Tip: Use 'refactron analyze' to find technical debt.",
+        "Tip: 'refactron rollback' can undo your last changes.",
+        "Tip: Check '.refactron.yaml' to customize behavior.",
+        "Tip: Run 'refactron serve-metrics' for Prometheus data.",
+        "Tip: Use --detailed for a deeper analysis report.",
+    ]
+
+    CHECKS = [
+        "Verifying configuration...",
+        "Checking credentials...",
+        "Initializing refactoring engine...",
+        "Scanning project structure...",
+        "Ready to transform.",
+    ]
+
+    selected_tip = random.choice(TIPS)
+
+    def get_renderable(step: int, phase: str) -> Align:
+        grid = Table.grid(expand=True)
+        grid.add_column(justify="center", ratio=1)
+        grid.add_row(Text("\n" * 2))  # Top padding
+
+        if phase == "check":
+            # System check phase
+            check_idx = min(step // 5, len(CHECKS) - 1)
+            grid.add_row(Align.center(Text("SYSTEM CHECK", style="bold #5f5fff")))
+            grid.add_row(Align.center(Text(CHECKS[check_idx], style="dim")))
+
+            # Mini progress bar
+            width = 30
+            filled = int((step / 25) * width)
+            bar = "━" * filled + " " * (width - filled)
+            grid.add_row(Align.center(Text(f"[{bar}]", style="#5f5fff")))
+
+        elif phase == "logo":
+            # Reveal logo wipe
+            max_len = max(len(line) for line in LOGO_LINES)
+            reveal_len = int((step / 30) * max_len)
+
+            logo_text = Text()
+            for line in LOGO_LINES:
+                visible_part = line[:reveal_len]
+                logo_text.append(visible_part + "\n", style="bold #ffffff")
+
+            grid.add_row(Align.center(logo_text))
+
+        elif phase == "final":
+            # Logo static
+            logo_text = Text()
+            for line in LOGO_LINES:
+                logo_text.append(line + "\n", style="bold #ffffff")
+            grid.add_row(Align.center(logo_text))
+
+            # Subtitle
+            grid.add_row(Align.center(Text(subtitle_text, style="italic #8a8a8a")))
+
+            # System Info
+            info_table = Table.grid(padding=(0, 2))
+            info_table.add_column(style="dim", justify="right")
+            info_table.add_column(style="bold white")
+
+            info_table.add_row("Version:", "v1.0.1")
+            info_table.add_row("Python:", sys.version.split()[0])
+            info_table.add_row("OS:", platform.system())
+
+            grid.add_row(Text("\n"))
+            grid.add_row(Align.center(info_table))
+
+            # Tip
+            grid.add_row(Text("\n"))
+            grid.add_row(
+                Align.center(
+                    Panel(Text(selected_tip, style="cyan"), border_style="#333333", expand=False)
+                )
+            )
+
+        return Align.center(grid)
+
+    with Live(console=console, refresh_per_second=20, transient=True) as live:
+        # Phase 1: System Checks
+        for i in range(26):
+            live.update(get_renderable(i, "check"))
+            time.sleep(0.04)
+
+        # Phase 2: Logo Wipe
+        for i in range(31):
+            live.update(get_renderable(i, "logo"))
+            time.sleep(0.03)
+
+        # Phase 3: Final Reveal
+        live.update(get_renderable(0, "final"))
+        time.sleep(1.5)
+
+    # Final static print
+    console.print()
+    for line in LOGO_LINES:
+        console.print(Align.center(Text(line, style="bold #ffffff")))
+    console.print(Align.center(Text(subtitle_text, style="italic #8a8a8a")))
+    console.print(Align.center(Text("v1.0.1", style="dim")))
+    console.print()
+
+
+def _print_custom_help(ctx: click.Context) -> None:
+    """Print a beautifully formatted, numbered help screen."""
+    console.print()
+    # Use a clean, bold header
+    header = Table.grid(expand=True)
+    header.add_column(justify="center")
+    header.add_row(Text("⚡ REFACTRON", style="bold white"))
+    header.add_row(Text("INTELLIGENT CODE REFACTORING", style="dim white"))
+    console.print(Panel(header, border_style="#333333", padding=(1, 2)))
+
+    console.print("\n[bold white]COMMAND CENTER[/bold white]")
+    console.print("[dim]Select a command by name or number[/dim]\n")
+
+    table = Table(
+        show_header=True, header_style="bold cyan", box=box.SIMPLE, expand=True, padding=(0, 2)
+    )
+    table.add_column("ID", justify="right", style="cyan", width=4)
+    table.add_column("COMMAND", style="bold white", width=20)
+    table.add_column("DESCRIPTION", style="dim")
+
+    commands = sorted(ctx.command.list_commands(ctx))
+    for i, cmd_name in enumerate(commands, 1):
+        cmd = ctx.command.get_command(ctx, cmd_name)
+        description = cmd.get_short_help_str() if cmd else ""
+        table.add_row(f"{i:02d}", cmd_name.upper(), description)
+
+    console.print(table)
+
+    console.print("\n[bold cyan]GLOBAL OPTIONS[/bold cyan]")
+    grid = Table.grid(padding=(0, 2))
+    grid.add_column(style="bold white")
+    grid.add_column(style="dim")
+    grid.add_row("--version", "Show the version and exit.")
+    grid.add_row("--help", "Show this message and exit.")
+    console.print(grid)
+
+    console.print("\n[dim]USAGE: refactron <command> [args]...[/dim]")
+    console.print("[dim]EXAMPLE: refactron analyze . --detailed[/dim]\n")
+
+
+class CustomHelpGroup(click.Group):
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        _print_custom_help(ctx)
+
+
+def _run_minimal_loop(ctx: click.Context) -> None:
+    """Run a minimal interactive loop for help and version only."""
+
+    def print_header() -> None:
+        creds = load_credentials()
+        user = creds.email if creds else "Guest"
+        plan = (creds.plan or "Free").upper() if creds else "N/A"
+
+        # Profile Card Layout
+        grid = Table.grid(expand=False, padding=(0, 3))
+        grid.add_column(justify="center")
+        grid.add_column(justify="left", vertical="middle")
+
+        # Avatar (Simple ASCII)
+        avatar = """
+      ▄▄▄
+     █████
+    ███████
+   █████████
+  ███ █ █ ███
+        """
+
+        info = Table.grid(padding=(0, 1))
+        info.add_column(style="dim", justify="right")
+        info.add_column(style="bold white")
+
+        info.add_row("User:", user)
+        info.add_row("Plan:", plan)
+        info.add_row("Status:", "[green]Online[/green]")
+
+        grid.add_row(Text(avatar.strip(), style="#5f5fff"), info)
+
+        console.print(
+            Panel(
+                grid,
+                title="[bold]DASHBOARD[/bold]",
+                border_style="#444444",
+                box=box.ROUNDED,
+                expand=False,
+                padding=(1, 2),
+            )
+        )
+
+    console.clear()
+    print_header()
+
+    while True:
+        try:
+            console.print("\n[bold]Available Options:[/bold]")
+            console.print(
+                "1. [bold blue]Help[/bold blue]      [dim]Show CLI usage and commands[/dim]"
+            )
+            console.print("2. [bold blue]Version[/bold blue]   [dim]Show current version[/dim]")
+            console.print("3. [bold blue]Exit[/bold blue]")
+
+            choice = Prompt.ask(
+                "\n[bold]>[/bold] ", choices=["1", "2", "3"], default="3", show_choices=False
+            )
+
+            if choice == "1":
+                _print_custom_help(ctx)
+            elif choice == "2":
+                console.print("\nRefactron CLI v1.0.1")
+            elif choice == "3":
+                console.print("Goodbye!")
+                break
+
+        except KeyboardInterrupt:
+            console.print("\nGoodbye!")
+            break
+
+
+@click.group(cls=CustomHelpGroup, invoke_without_command=True)
 @click.version_option(version="1.0.1")
-def main() -> None:
+@click.pass_context
+def main(ctx: click.Context) -> None:
     """
     Refactron - The Intelligent Code Refactoring Transformer
 
     Analyze, refactor, and optimize your Python code with ease.
     """
+    # Check authentication for all commands except login/logout
+    exempt_commands = ["login", "logout"]
+
+    if ctx.invoked_subcommand not in exempt_commands:
+        creds = load_credentials()
+        is_authenticated = False
+        if creds and creds.access_token:
+            now = datetime.now(timezone.utc)
+            if not creds.expires_at or creds.expires_at > now:
+                is_authenticated = True
+
+        if not is_authenticated:
+            # If it's a subcommand, we might want a slightly different message
+            if ctx.invoked_subcommand:
+                console.print(
+                    f"\n[yellow]Authentication required to run '{ctx.invoked_subcommand}'[/yellow]"
+                )
+            else:
+                console.print(Align.center(Text("\nAuthentication Required", style="bold")))
+
+            if Prompt.ask("\nLog in to continue?", choices=["y", "n"], default="y") == "y":
+                try:
+                    ctx.invoke(
+                        login,
+                        api_base_url=DEFAULT_API_BASE_URL,
+                        no_browser=False,
+                        timeout=300,
+                        force=False,
+                    )
+                    # Re-check credentials
+                    creds = load_credentials()
+                    if creds and creds.access_token:
+                        is_authenticated = True
+                except SystemExit:
+                    pass
+
+            if not is_authenticated:
+                console.print("[dim]Exiting...[/dim]")
+                raise SystemExit(1)
+
+    if ctx.invoked_subcommand is None:
+        _run_startup_animation()
+        _run_minimal_loop(ctx)
     pass
+
+
+@main.command()
+@click.option(
+    "--api-base-url",
+    default=DEFAULT_API_BASE_URL,
+    show_default=True,
+    help="Refactron API base URL",
+)
+@click.option(
+    "--no-browser",
+    is_flag=True,
+    default=False,
+    help="Do not open a browser automatically (print the URL instead)",
+)
+@click.option(
+    "--timeout",
+    type=int,
+    default=10,
+    show_default=True,
+    help="HTTP timeout in seconds for each request",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Force re-login even if already logged in",
+)
+def login(api_base_url: str, no_browser: bool, timeout: int, force: bool) -> None:
+    """Log in to Refactron CLI via device-code flow."""
+    import time
+
+    _setup_logging()
+
+    if not force:
+        existing = load_credentials()
+        if existing and existing.access_token:
+            now = datetime.now(timezone.utc)
+            if not existing.expires_at or existing.expires_at > now:
+                console.print("\n[bold green]Already authenticated[/bold green]")
+                console.print(f"User: [dim]{existing.email or 'unknown'}[/dim]")
+                return
+
+    with console.status("[bold blue]Connecting to Refactron...[/bold blue]", spinner="dots"):
+        time.sleep(0.5)
+        try:
+            auth = start_device_authorization(api_base_url=api_base_url, timeout_seconds=timeout)
+        except Exception as e:
+            console.print(
+                Panel(f"Failed to start login: {e}", title="Connection Error", border_style="red")
+            )
+            raise SystemExit(1)
+
+    login_url = f"https://app.refactron.dev/login?{urlencode({'code': auth.user_code})}"
+
+    instructions = Text()
+    instructions.append("Please visit the following URL to authenticate:\n\n", style="dim")
+    instructions.append(f"  {login_url}\n\n", style="underline bold #5f5fff")
+    instructions.append("Verification Code:\n", style="dim")
+    instructions.append(f"  {auth.user_code}\n", style="bold white")
+
+    console.print(
+        Panel(
+            instructions,
+            title="Device Login",
+            border_style="#444444",
+            box=box.ROUNDED,
+            padding=(1, 2),
+        )
+    )
+
+    if not no_browser:
+        console.print("[dim]Opening browser...[/dim]")
+        try:
+            webbrowser.open(login_url, new=2)
+        except Exception:
+            pass
+
+    try:
+        with console.status("[bold blue]Waiting for authorization...[/bold blue]", spinner="dots"):
+            token = poll_for_token(
+                device_code=auth.device_code,
+                api_base_url=api_base_url,
+                interval_seconds=auth.interval,
+                expires_in_seconds=auth.expires_in,
+                timeout_seconds=timeout,
+            )
+    except Exception as e:
+        console.print(Panel(f"Login failed: {e}", title="Error", border_style="red"))
+        raise SystemExit(1)
+
+    # For pro/enterprise plans, require a verified API key before completing login.
+    api_key: Optional[str] = None
+    plan_lower = (token.plan or "").lower()
+    if plan_lower in ("pro", "enterprise"):
+        console.print()
+        console.print(
+            Panel(
+                "Your plan requires an API key.\n\n"
+                "Generate a key in the Refactron web app and paste it below.",
+                title="API Key Required",
+                border_style="#444444",
+                box=box.ROUNDED,
+            )
+        )
+        api_key_input = click.prompt("API key", hide_input=True, default="")
+        candidate_key = api_key_input.strip()
+        if not candidate_key:
+            console.print(
+                Panel(
+                    "API key is required for this plan.", title="Login aborted", border_style="red"
+                )
+            )
+            raise SystemExit(1)
+
+        with console.status("[bold blue]Verifying API key...[/bold blue]", spinner="dots"):
+            time.sleep(0.5)
+            validation = _validate_api_key(
+                api_base_url=api_base_url,
+                api_key=candidate_key,
+                timeout_seconds=timeout,
+            )
+
+        if not validation.ok:
+            console.print(
+                Panel(
+                    f"{validation.message}\n\nAPI: {api_base_url}",
+                    title="Login aborted",
+                    border_style="red",
+                    box=box.ROUNDED,
+                )
+            )
+            raise SystemExit(1)
+
+        api_key = candidate_key
+        console.print(Panel("API key verified.", border_style="success", box=box.ROUNDED))
+
+    creds = RefactronCredentials(
+        api_base_url=api_base_url,
+        access_token=token.access_token,
+        token_type=token.token_type,
+        expires_at=token.expires_at(),
+        email=token.email,
+        plan=token.plan,
+        api_key=api_key,
+    )
+
+    try:
+        save_credentials(creds)
+    except Exception as e:
+        console.print(
+            Panel(f"Failed to save credentials: {e}", title="Error", border_style="error")
+        )
+        raise SystemExit(1)
+
+    expires_at_local = creds.expires_at
+    expires_at_str = (
+        expires_at_local.astimezone(timezone.utc).isoformat() if expires_at_local else "unknown"
+    )
+
+    who = creds.email or "unknown"
+    plan = creds.plan or "unknown"
+
+    summary = Table(show_header=False, box=None, pad_edge=False)
+    summary.add_column("k", style="secondary", no_wrap=True)
+    summary.add_column("v", style="highlight")
+    summary.add_row("User", who)
+    summary.add_row("Plan", plan)
+    summary.add_row("Token expires", expires_at_str)
+
+    if plan_lower in ("pro", "enterprise"):
+        summary.add_row("API key", "Configured" if creds.api_key else "Missing")
+    summary.add_row("Credentials file", str(credentials_path()))
+
+    console.print()
+    console.print(
+        Panel(
+            summary, title="Login complete", border_style="success", box=box.ROUNDED, padding=(1, 2)
+        )
+    )
+    console.print()
+
+
+@main.command()
+def logout() -> None:
+    """Log out of Refactron CLI (removes stored credentials)."""
+    _setup_logging()
+    console.print()
+    _auth_banner("Logout")
+    console.print()
+    deleted = delete_credentials()
+    if deleted:
+        console.print(
+            Panel(
+                "Stored credentials removed.",
+                title="Logged out",
+                border_style="success",
+                box=box.ROUNDED,
+            )
+        )
+    else:
+        console.print(
+            Panel(
+                "No stored credentials found.",
+                title="Logout",
+                border_style="warning",
+                box=box.ROUNDED,
+            )
+        )
+
+
+@main.group()
+def auth() -> None:
+    """Authentication commands."""
+    pass
+
+
+@auth.command("status")
+def auth_status() -> None:
+    """Show current login status."""
+    _setup_logging()
+    console.print()
+    _auth_banner("Auth status")
+    console.print()
+    creds = load_credentials()
+    if not creds:
+        console.print(
+            Panel("Not logged in.", title="Authentication", border_style="warning", box=box.ROUNDED)
+        )
+        return
+
+    table = Table(show_header=False, box=None, pad_edge=False)
+    table.add_column("k", style="secondary", no_wrap=True)
+    table.add_column("v", style="highlight")
+    table.add_row("Status", "Logged in")
+
+    table.add_row("User", creds.email or "unknown")
+    table.add_row("Plan", creds.plan or "unknown")
+    if creds.expires_at:
+        table.add_row("Token expires", creds.expires_at.isoformat())
+    table.add_row("API key", "Present" if creds.api_key else "Not set")
+
+    console.print(
+        Panel(
+            table, title="Authentication", border_style="primary", box=box.ROUNDED, padding=(1, 2)
+        )
+    )
+
+
+@auth.command("logout")
+def auth_logout() -> None:
+    """Alias for `refactron logout`."""
+    logout()
 
 
 @main.command()
@@ -391,7 +1107,9 @@ def analyze(
     # Setup logging
     _setup_logging()
 
-    console.print("\n🔍 [bold blue]Refactron Analysis[/bold blue]\n")
+    console.print()
+    _auth_banner("Analysis")
+    console.print()
 
     # Setup
     target_path = _validate_path(target)
@@ -409,11 +1127,11 @@ def analyze(
 
     # Run analysis
     try:
-        with console.status("[bold green]🔎 Analyzing code...[/bold green]"):
+        with console.status("[primary]Analyzing code...[/primary]"):
             refactron = Refactron(cfg)
             result = refactron.analyze(target)
     except Exception as e:
-        console.print(f"[red]❌ Analysis failed: {e}[/red]")
+        console.print(f"[red]Analysis failed: {e}[/red]")
         console.print("[dim]Tip: Check if all files have valid Python syntax[/dim]")
         raise SystemExit(1)
 
@@ -433,7 +1151,7 @@ def analyze(
     if show_metrics and cfg.enable_metrics:
         from refactron.core.metrics import get_metrics_collector
 
-        console.print("\n[bold]📊 Metrics Summary:[/bold]")
+        console.print("\n[bold]Metrics Summary:[/bold]")
         collector = get_metrics_collector()
         metrics_summary = collector.get_analysis_summary()
         console.print(
@@ -511,7 +1229,9 @@ def refactor(
     # Setup logging
     _setup_logging()
 
-    console.print("\n🔧 [bold blue]Refactron Refactoring[/bold blue]\n")
+    console.print()
+    _auth_banner("Refactoring")
+    console.print()
 
     # Setup
     target_path = _validate_path(target)
@@ -537,23 +1257,23 @@ def refactor(
                     description=f"refactoring {target}",
                     create_git_commit=backup_system.git.is_git_repo(),
                 )
-                console.print(f"[dim]📦 Backup created: {session_id}[/dim]")
+                console.print(f"[dim]Backup created: {session_id}[/dim]")
                 if failed_files:
                     console.print(
-                        f"[yellow]⚠️  {len(failed_files)} file(s) could not be backed up[/yellow]"
+                        f"[yellow]{len(failed_files)} file(s) could not be backed up[/yellow]"
                     )
         except (OSError, PermissionError) as e:
-            console.print(f"[yellow]⚠️  Backup creation failed (I/O error): {e}[/yellow]")
+            console.print(f"[yellow]Backup creation failed (I/O error): {e}[/yellow]")
             if not click.confirm("Continue without backup?"):
                 raise SystemExit(0)
         except Exception as e:
-            console.print(f"[yellow]⚠️  Backup creation failed: {type(e).__name__}: {e}[/yellow]")
+            console.print(f"[yellow]Backup creation failed: {type(e).__name__}: {e}[/yellow]")
             if not click.confirm("Continue without backup?"):
                 raise SystemExit(0)
 
     # Run refactoring
     try:
-        with console.status("[bold green]🔎 Analyzing and generating refactorings...[/bold green]"):
+        with console.status("[primary]Analyzing and generating refactorings...[/primary]"):
             refactron = Refactron(cfg)
             result = refactron.refactor(
                 target,
@@ -561,7 +1281,7 @@ def refactor(
                 operation_types=list(types) if types else None,
             )
     except Exception as e:
-        console.print(f"[red]❌ Refactoring failed: {e}[/red]")
+        console.print(f"[red]Refactoring failed: {e}[/red]")
         raise SystemExit(1)
 
     # Display results
@@ -575,7 +1295,7 @@ def refactor(
         # Show ranking info if available
         ranked_count = sum(1 for op in result.operations if "ranking_score" in op.metadata)
         if ranked_count > 0:
-            console.print(f"[dim]📊 {ranked_count} operations ranked by learned patterns[/dim]\n")
+            console.print(f"[dim]{ranked_count} operations ranked by learned patterns[/dim]\n")
 
         console.print("[bold]Refactoring Operations:[/bold]\n")
         console.print(result.show_diff())
@@ -589,7 +1309,7 @@ def refactor(
             _collect_feedback_interactive(refactron, result)
 
     if session_id and not preview:
-        console.print("\n[dim]💡 Tip: Run 'refactron rollback' to undo these changes[/dim]")
+        console.print("\n[dim]Tip: Run 'refactron rollback' to undo these changes[/dim]")
 
 
 @main.command()
@@ -623,7 +1343,9 @@ def feedback(operation_id: str, action: str, reason: Optional[str], config: Opti
       refactron feedback abc-123 --action accepted --reason "Improved readability"
       refactron feedback xyz-789 --action rejected --reason "Too risky"
     """
-    console.print("\n💬 [bold blue]Refactron Feedback[/bold blue]\n")
+    console.print()
+    _auth_banner("Feedback")
+    console.print()
 
     # Load config
     cfg = _load_config(config, None, None)
@@ -632,7 +1354,7 @@ def feedback(operation_id: str, action: str, reason: Optional[str], config: Opti
     try:
         refactron = Refactron(cfg)
     except Exception as e:
-        console.print(f"[red]❌ Failed to initialize Refactron: {e}[/red]")
+        console.print(f"[red]Failed to initialize Refactron: {e}[/red]")
         raise SystemExit(1)
 
     # Record feedback
@@ -643,8 +1365,8 @@ def feedback(operation_id: str, action: str, reason: Optional[str], config: Opti
             operation_exists = any(f.operation_id == operation_id for f in existing_feedbacks)
             if not operation_exists:
                 console.print(
-                    f"[yellow]⚠️  Warning: Operation ID '{operation_id}' "
-                    "not found in recent operations.[/yellow]"
+                    f"[warning]Warning: Operation ID '{operation_id}' "
+                    "not found in recent operations.[/warning]"
                 )
                 console.print(
                     "[dim]This may be a new or mistyped operation ID. "
@@ -656,12 +1378,12 @@ def feedback(operation_id: str, action: str, reason: Optional[str], config: Opti
             action=action.lower(),
             reason=reason,
         )
-        console.print(f"[green]✅ Feedback recorded for operation {operation_id}[/green]")
+        console.print(f"[success]Feedback recorded for operation {operation_id}[/success]")
         console.print(f"[dim]Action: {action}[/dim]")
         if reason:
             console.print(f"[dim]Reason: {reason}[/dim]")
     except Exception as e:
-        console.print(f"[red]❌ Failed to record feedback: {e}[/red]")
+        console.print(f"[red]Failed to record feedback: {e}[/red]")
         raise SystemExit(1)
 
 
@@ -711,22 +1433,24 @@ def report(
 
     TARGET: Path to file or directory to analyze
     """
-    console.print("\n📊 [bold blue]Generating Report[/bold blue]\n")
+    console.print()
+    _auth_banner("Report")
+    console.print()
 
     target_path = Path(target)
 
     # Validate target
     if not target_path.exists():
-        console.print(f"[red]❌ Error: Path does not exist: {target}[/red]")
+        console.print(f"[error]Error: Path does not exist: {target}[/error]")
         raise SystemExit(1)
 
     cfg = _load_config(config, profile, environment)
     cfg.report_format = format
 
-    console.print(f"[dim]📝 Format: {format.upper()}[/dim]")
+    console.print(f"[secondary]Format: {format.upper()}[/secondary]")
 
     try:
-        with console.status("[bold green]📊 Analyzing code and generating report...[/bold green]"):
+        with console.status("[primary]Analyzing code and generating report...[/primary]"):
             refactron = Refactron(cfg)
             result = refactron.analyze(target)
 
@@ -740,13 +1464,13 @@ def report(
                 f.write(report_content)
 
             file_size = output_path.stat().st_size
-            console.print(f"\n✅ Report saved to: [bold]{output}[/bold]")
-            console.print(f"[dim]📦 Size: {file_size:,} bytes[/dim]")
+            console.print(f"\nReport saved to: [bold]{output}[/bold]")
+            console.print(f"[dim]Size: {file_size:,} bytes[/dim]")
         else:
             console.print(report_content)
 
     except Exception as e:
-        console.print(f"[red]❌ Report generation failed: {e}[/red]")
+        console.print(f"[red]Report generation failed: {e}[/red]")
         raise SystemExit(1)
 
 
@@ -808,7 +1532,9 @@ def autofix(
       refactron autofix myfile.py --preview
       refactron autofix myproject/ --apply --safety-level moderate
     """
-    console.print("\n🔧 [bold blue]Refactron Auto-fix[/bold blue]\n")
+    console.print()
+    _auth_banner("Auto-fix")
+    console.print()
 
     # Setup
     target_path = _validate_path(target)
@@ -828,26 +1554,31 @@ def autofix(
     engine = AutoFixEngine(safety_level=safety)
 
     if preview:
-        console.print("[yellow]📋 Preview mode: No changes will be applied[/yellow]\n")
+        console.print("[warning]Preview mode: No changes will be applied[/warning]\n")
     else:
-        console.print("[green]✅ Apply mode: Changes will be written to files[/green]\n")
+        console.print("[success]Apply mode: Changes will be written to files[/success]\n")
 
-    console.print(f"[dim]🛡️  Safety level: {safety_level}[/dim]")
-    console.print(f"[dim]🔧 Available fixers: {len(engine.fixers)}[/dim]\n")
+    console.print(f"[secondary]Safety level: {safety_level}[/secondary]")
+    console.print(f"[secondary]Available fixers: {len(engine.fixers)}[/secondary]\n")
 
     # Display available fixers
-    console.print("[bold]Available Auto-fixes:[/bold]\n")
+    console.print("[primary bold]Available Auto-fixes:[/primary bold]\n")
     for fixer_name, fixer in engine.fixers.items():
-        risk_emoji = "🟢" if fixer.risk_score == 0.0 else "🟡" if fixer.risk_score < 0.5 else "🔴"
-        console.print(f"{risk_emoji} {fixer_name} (risk: {fixer.risk_score:.1f})")
+        if fixer.risk_score == 0.0:
+            risk_label = "[success]LOW[/success]"
+        elif fixer.risk_score < 0.5:
+            risk_label = "[warning]MED[/warning]"
+        else:
+            risk_label = "[error]HIGH[/error]"
+        console.print(f"{risk_label} {fixer_name} (risk: {fixer.risk_score:.1f})")
 
     console.print(
-        "\n[dim]💡 Tip: Auto-fix requires analyzed issues. Integration with analyzers "
-        "coming soon![/dim]"
+        "\n[secondary]Tip: Auto-fix requires analyzed issues. Integration with analyzers "
+        "coming soon![/secondary]"
     )
     console.print(
-        "[dim]📖 For now, use 'refactron analyze' to find issues, then 'refactron refactor' "
-        "to fix them.[/dim]"
+        "[secondary]For now, use 'refactron analyze' to find issues, then 'refactron refactor' "
+        "to fix them.[/secondary]"
     )
 
 
@@ -866,14 +1597,14 @@ def init(template: str) -> None:
     config_path = Path(".refactron.yaml")
 
     if config_path.exists():
-        console.print("[yellow]⚠️  Configuration file already exists![/yellow]")
+        console.print("[yellow]Configuration file already exists![/yellow]")
         if not click.confirm("Overwrite?"):
             return
 
     # Detect project type and suggest appropriate template
     detected_type = _detect_project_type()
     if detected_type and detected_type != template:
-        console.print(f"[yellow]💡 Detected {detected_type} project[/yellow]")
+        console.print(f"[yellow]Detected {detected_type} project[/yellow]")
         if template == "base":
             console.print(
                 f"[yellow]   Consider using --template {detected_type} for "
@@ -890,18 +1621,18 @@ def init(template: str) -> None:
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(template_dict, f, default_flow_style=False, sort_keys=False)
 
-        console.print(f"✅ Created configuration file: {config_path}")
-        console.print(f"[dim]📋 Using template: {template}[/dim]")
+        console.print(f"Created configuration file: {config_path}")
+        console.print(f"[dim]Using template: {template}[/dim]")
         if template != "base":
             console.print(
-                f"[dim]💡 Template includes framework-specific settings for {template}[/dim]"
+                f"[dim]Template includes framework-specific settings for {template}[/dim]"
             )
         console.print("\n[dim]Edit this file to customize Refactron behavior.[/dim]")
         console.print(
-            "[dim]💡 Use --profile or --environment options to switch between dev/staging/prod[/dim]"
+            "[dim]Use --profile or --environment options to switch between dev/staging/prod[/dim]"
         )
     except ValueError as e:
-        console.print(f"[red]❌ Error: {e}[/red]")
+        console.print(f"[red]Error: {e}[/red]")
         raise SystemExit(1)
 
 
@@ -989,21 +1720,19 @@ def rollback(
             return
 
         count = system.clear_all()
-        console.print(f"[green]✅ Cleared {count} backup session(s).[/green]")
+        console.print(f"[success]Cleared {count} backup session(s).[/success]")
         return
 
     sessions = system.list_sessions()
     if not sessions:
         console.print("[yellow]No backup sessions found.[/yellow]")
-        console.print(
-            "[dim]💡 Tip: Backups are created automatically when using --apply mode.[/dim]"
-        )
+        console.print("[dim]Tip: Backups are created automatically when using --apply mode.[/dim]")
         return
 
     if session:
         sess = system.backup_manager.get_session(session)
         if not sess:
-            console.print(f"[red]❌ Session not found: {session}[/red]")
+            console.print(f"[error]Session not found: {session}[/error]")
             console.print("[dim]Use 'refactron rollback --list' to see available sessions.[/dim]")
             raise SystemExit(1)
         console.print(f"[dim]Rolling back session: {session}[/dim]")
@@ -1019,7 +1748,7 @@ def rollback(
         console.print("[dim]Using file backup rollback...[/dim]")
 
     console.print(
-        "\n[yellow]⚠️  This will overwrite your current files with backup versions.[/yellow]"
+        "\n[warning]This will overwrite your current files with backup versions.[/warning]"
     )
     if not click.confirm("Are you sure you want to proceed with rollback?"):
         console.print("[yellow]Rollback cancelled.[/yellow]")
@@ -1028,15 +1757,15 @@ def rollback(
     result = system.rollback(session_id=session, use_git=use_git)
 
     if result["success"]:
-        console.print(f"\n[green]✅ {result['message']}[/green]")
+        console.print(f"\n[success]{result['message']}[/success]")
         if result.get("files_restored"):
             console.print(f"[dim]Files restored: {result['files_restored']}[/dim]")
         if result.get("failed_files"):
             console.print(
-                f"[yellow]⚠️  Failed to restore: {', '.join(result['failed_files'])}[/yellow]"
+                f"[warning]Failed to restore: {', '.join(result['failed_files'])}[/warning]"
             )
     else:
-        console.print(f"\n[red]❌ Rollback failed: {result['message']}[/red]")
+        console.print(f"\n[red]Rollback failed: {result['message']}[/red]")
         raise SystemExit(1)
 
 
@@ -1075,25 +1804,27 @@ def telemetry(action: str) -> None:
     """
     from refactron.core.telemetry import TelemetryConfig
 
-    console.print("\n📊 [bold blue]Refactron Telemetry[/bold blue]\n")
+    console.print()
+    _auth_banner("Telemetry")
+    console.print()
 
     config = TelemetryConfig()
 
     if action == "enable":
         config.enable()
-        console.print("[green]✅ Telemetry has been enabled.[/green]")
+        console.print("[success]Telemetry has been enabled.[/success]")
         console.print("\n[dim]Thank you for helping improve Refactron![/dim]")
         console.print("[dim]Only anonymous usage statistics are collected.[/dim]")
         console.print(f"[dim]Anonymous ID: {config.anonymous_id}[/dim]")
     elif action == "disable":
         config.disable()
-        console.print("[yellow]Telemetry has been disabled.[/yellow]")
+        console.print("[warning]Telemetry has been disabled.[/warning]")
         console.print(
             "\n[dim]You can re-enable it anytime with 'refactron telemetry --enable'[/dim]"
         )
     else:  # status
         if config.enabled:
-            console.print("[green]✅ Telemetry is currently enabled[/green]")
+            console.print("[success]Telemetry is currently enabled[/success]")
             console.print(f"\n[dim]Anonymous ID: {config.anonymous_id}[/dim]")
             console.print("\n[bold]What data is collected:[/bold]")
             console.print("  • Number of files analyzed")
@@ -1134,7 +1865,9 @@ def metrics(format: str) -> None:
 
     from refactron.core.metrics import get_metrics_collector
 
-    console.print("\n📈 [bold blue]Refactron Metrics[/bold blue]\n")
+    console.print()
+    _auth_banner("Metrics")
+    console.print()
 
     collector = get_metrics_collector()
     summary = collector.get_combined_summary()
@@ -1203,15 +1936,17 @@ def serve_metrics(host: str, port: int) -> None:
     """
     from refactron.core.prometheus_metrics import start_metrics_server
 
-    console.print("\n🚀 [bold blue]Starting Prometheus Metrics Server[/bold blue]\n")
+    console.print()
+    _auth_banner("Metrics Server")
+    console.print()
 
     try:
         start_metrics_server(host=host, port=port)
-        console.print(f"[green]✅ Metrics server started on http://{host}:{port}[/green]")
+        console.print(f"[success]Metrics server started on http://{host}:{port}[/success]")
         console.print("\n[dim]Endpoints:[/dim]")
         console.print(f"[dim]  • http://{host}:{port}/metrics - Prometheus metrics[/dim]")
         console.print(f"[dim]  • http://{host}:{port}/health  - Health check[/dim]")
-        console.print("\n[yellow]Press Ctrl+C to stop the server[/yellow]")
+        console.print("\n[warning]Press Ctrl+C to stop the server[/warning]")
 
         # Keep the server running
         try:
@@ -1220,13 +1955,13 @@ def serve_metrics(host: str, port: int) -> None:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            console.print("\n\n[yellow]Stopping metrics server...[/yellow]")
+            console.print("\n\n[warning]Stopping metrics server...[/warning]")
             from refactron.core.prometheus_metrics import stop_metrics_server
 
             stop_metrics_server()
-            console.print("[green]✅ Metrics server stopped[/green]")
+            console.print("[success]Metrics server stopped[/success]")
     except Exception as e:
-        console.print(f"[red]❌ Failed to start metrics server: {e}[/red]")
+        console.print(f"[red]Failed to start metrics server: {e}[/red]")
         raise SystemExit(1)
 
 
@@ -1291,7 +2026,9 @@ def generate_cicd(
     from refactron.cicd.gitlab_ci import GitLabCIGenerator
     from refactron.cicd.pre_commit import PreCommitGenerator
 
-    console.print("\n🔧 [bold blue]Generating CI/CD Templates[/bold blue]\n")
+    console.print()
+    _auth_banner("CI/CD Templates")
+    console.print()
 
     output_path = Path(output) if output else Path(".")
 
@@ -1308,7 +2045,7 @@ def generate_cicd(
 
     try:
         if type in ("github", "all"):
-            console.print("[dim]📝 Generating GitHub Actions workflow...[/dim]")
+            console.print("[dim]Generating GitHub Actions workflow...[/dim]")
             github_gen = GitHubActionsGenerator()
 
             # Create workflows directory
@@ -1321,7 +2058,7 @@ def generate_cicd(
             )
             workflow_path = workflows_dir / "refactron-analysis.yml"
             github_gen.save_workflow(workflow_content, workflow_path)
-            console.print(f"[green]✅ Created: {workflow_path}[/green]")
+            console.print(f"[success]Created: {workflow_path}[/success]")
 
             # Generate pre-commit workflow
             pre_commit_workflow = github_gen.generate_pre_commit_workflow(
@@ -1329,10 +2066,10 @@ def generate_cicd(
             )
             pre_commit_path = workflows_dir / "refactron-pre-commit.yml"
             github_gen.save_workflow(pre_commit_workflow, pre_commit_path)
-            console.print(f"[green]✅ Created: {pre_commit_path}[/green]")
+            console.print(f"[success]Created: {pre_commit_path}[/success]")
 
         if type in ("gitlab", "all"):
-            console.print("[dim]📝 Generating GitLab CI pipeline...[/dim]")
+            console.print("[dim]Generating GitLab CI pipeline...[/dim]")
             gitlab_gen = GitLabCIGenerator()
 
             # Generate main pipeline
@@ -1341,7 +2078,7 @@ def generate_cicd(
             )
             pipeline_path = output_path / ".gitlab-ci.yml"
             gitlab_gen.save_pipeline(pipeline_content, pipeline_path)
-            console.print(f"[green]✅ Created: {pipeline_path}[/green]")
+            console.print(f"[success]Created: {pipeline_path}[/success]")
 
             # Generate pre-commit pipeline
             pre_commit_pipeline = gitlab_gen.generate_pre_commit_pipeline(
@@ -1349,10 +2086,10 @@ def generate_cicd(
             )
             pre_commit_pipeline_path = output_path / ".gitlab-ci-pre-commit.yml"
             gitlab_gen.save_pipeline(pre_commit_pipeline, pre_commit_pipeline_path)
-            console.print(f"[green]✅ Created: {pre_commit_pipeline_path}[/green]")
+            console.print(f"[success]Created: {pre_commit_pipeline_path}[/success]")
 
         if type in ("pre-commit", "all"):
-            console.print("[dim]📝 Generating pre-commit configuration...[/dim]")
+            console.print("[dim]Generating pre-commit configuration...[/dim]")
             pre_commit_gen = PreCommitGenerator()
 
             # Generate pre-commit config
@@ -1364,7 +2101,7 @@ def generate_cicd(
             )
             config_path = output_path / ".pre-commit-config.refactron.yaml"
             pre_commit_gen.save_config(config_content, config_path)
-            console.print(f"[green]✅ Created: {config_path}[/green]")
+            console.print(f"[success]Created: {config_path}[/success]")
 
             # Generate simple hook script (only if this is a git repository)
             git_dir = output_path / ".git"
@@ -1374,22 +2111,22 @@ def generate_cicd(
                 hooks_dir.mkdir(parents=True, exist_ok=True)
                 hook_path = hooks_dir / "pre-commit.refactron"
                 pre_commit_gen.save_hook(hook_content, hook_path)
-                console.print(f"[green]✅ Created: {hook_path}[/green]")
+                console.print(f"[success]Created: {hook_path}[/success]")
             else:
                 console.print(
-                    "[dim]ℹ No .git directory found at the output path; "
+                    "[dim]No .git directory found at the output path; "
                     "skipping installation of the git hook script.[/dim]"
                 )
 
-        console.print("\n[green]✅ CI/CD templates generated successfully![/green]")
-        console.print("\n[dim]💡 Next steps:[/dim]")
+        console.print("\n[success]CI/CD templates generated successfully![/success]")
+        console.print("\n[dim]Next steps:[/dim]")
         console.print("[dim]  1. Review and customize the generated templates[/dim]")
         console.print("[dim]  2. For GitHub Actions: Workflows are in .github/workflows/[/dim]")
         console.print("[dim]  3. For GitLab CI: Merge into your .gitlab-ci.yml[/dim]")
         console.print("[dim]  4. For pre-commit: Install with 'pre-commit install'[/dim]")
 
     except Exception as e:
-        console.print(f"[red]❌ Failed to generate templates: {e}[/red]")
+        console.print(f"[red]Failed to generate templates: {e}[/red]")
         raise SystemExit(1)
 
 
@@ -1408,7 +2145,7 @@ def _get_pattern_storage_from_config(config: RefactronConfig) -> PatternStorage:
     try:
         return PatternStorage()
     except Exception as e:
-        console.print(f"[red]❌ Failed to initialize pattern storage: {e}[/red]")
+        console.print(f"[red]Failed to initialize pattern storage: {e}[/red]")
         raise SystemExit(1)
 
 
@@ -1434,7 +2171,9 @@ def patterns_analyze(project_path: str, config_path: Optional[str]) -> None:
 
     Shows project-specific acceptance rates and usage statistics.
     """
-    console.print("\n🧠 [bold blue]Pattern Analysis[/bold blue]\n")
+    console.print()
+    _auth_banner("Pattern Analysis")
+    console.print()
 
     cfg = _load_config(config_path, None, None)
     _setup_logging()
@@ -1447,12 +2186,12 @@ def patterns_analyze(project_path: str, config_path: Optional[str]) -> None:
     try:
         analysis = tuner.analyze_project_patterns(project_root)
     except Exception as e:
-        console.print(f"[red]❌ Failed to analyze project patterns: {e}[/red]")
+        console.print(f"[red]Failed to analyze project patterns: {e}[/red]")
         raise SystemExit(1)
 
     patterns = analysis.get("patterns", [])
     if not patterns:
-        console.print("[yellow]ℹ️  No pattern feedback found for this project yet.[/yellow]")
+        console.print("[yellow]No pattern feedback found for this project yet.[/yellow]")
         return
 
     table = Table(
@@ -1477,7 +2216,7 @@ def patterns_analyze(project_path: str, config_path: Optional[str]) -> None:
             f"{proj_acc:.1f}",
             str(p["project_total_decisions"]),
             f"{glob_acc:.1f}",
-            "✅" if p["enabled"] else "❌",
+            "Yes" if p["enabled"] else "No",
             f"{p['weight']:.2f}",
         )
 
@@ -1506,7 +2245,9 @@ def patterns_recommend(project_path: str, config_path: Optional[str]) -> None:
 
     Recommendations are based on project-specific pattern acceptance rates.
     """
-    console.print("\n🎯 [bold blue]Pattern Tuning Recommendations[/bold blue]\n")
+    console.print()
+    _auth_banner("Tuning Recommendations")
+    console.print()
 
     cfg = _load_config(config_path, None, None)
     _setup_logging()
@@ -1519,7 +2260,7 @@ def patterns_recommend(project_path: str, config_path: Optional[str]) -> None:
     try:
         recs = tuner.generate_recommendations(project_root)
     except Exception as e:
-        console.print(f"[red]❌ Failed to generate recommendations: {e}[/red]")
+        console.print(f"[red]Failed to generate recommendations: {e}[/red]")
         raise SystemExit(1)
 
     to_disable = recs.get("to_disable", [])
@@ -1527,9 +2268,7 @@ def patterns_recommend(project_path: str, config_path: Optional[str]) -> None:
     weights = recs.get("weights", {})
 
     if not to_disable and not to_enable and not weights:
-        console.print(
-            "[yellow]ℹ️  No tuning recommendations available yet for this project.[yellow]"
-        )
+        console.print("[yellow]No tuning recommendations available yet for this project.[/yellow]")
         return
 
     table = Table(
@@ -1588,7 +2327,9 @@ def patterns_tune(
     By default, shows recommended changes and asks for confirmation.
     Use --auto to apply without prompting.
     """
-    console.print("\n🛠️ [bold blue]Apply Pattern Tuning[/bold blue]\n")
+    console.print()
+    _auth_banner("Apply Tuning")
+    console.print()
 
     cfg = _load_config(config_path, None, None)
     _setup_logging()
@@ -1601,7 +2342,7 @@ def patterns_tune(
     try:
         recs = tuner.generate_recommendations(project_root)
     except Exception as e:
-        console.print(f"[red]❌ Failed to generate recommendations: {e}[/red]")
+        console.print(f"[red]Failed to generate recommendations: {e}[/red]")
         raise SystemExit(1)
 
     to_disable = recs.get("to_disable", [])
@@ -1609,14 +2350,14 @@ def patterns_tune(
     weights = recs.get("weights", {})
 
     if not to_disable and not to_enable and not weights:
-        console.print("[yellow]ℹ️  No tuning recommendations to apply for this project.[/yellow]")
+        console.print("[yellow]No tuning recommendations to apply for this project.[/yellow]")
         return
 
     console.print("[bold]Planned changes:[/bold]")
     if to_disable:
-        console.print(f"  • Disable patterns: [yellow]{', '.join(sorted(to_disable))}[/yellow]")
+        console.print(f"  • Disable patterns: [warning]{', '.join(sorted(to_disable))}[/warning]")
     if to_enable:
-        console.print(f"  • Enable patterns: [green]{', '.join(sorted(to_enable))}[/green]")
+        console.print(f"  • Enable patterns: [success]{', '.join(sorted(to_enable))}[/success]")
     if weights:
         console.print("  • Adjust weights:")
         for pid, w in sorted(weights.items()):
@@ -1630,11 +2371,11 @@ def patterns_tune(
     try:
         profile = tuner.apply_tuning(project_root, recs)
     except Exception as e:
-        console.print(f"[red]❌ Failed to apply tuning: {e}[/red]")
+        console.print(f"[red]Failed to apply tuning: {e}[/red]")
         raise SystemExit(1)
 
     console.print(
-        f"\n✅ Applied tuning for project [bold]{profile.project_path}[/bold] "
+        f"\n[success]Applied tuning for project [bold]{profile.project_path}[/bold][/success] "
         f"(profile ID: {profile.project_id})"
     )
 
@@ -1661,7 +2402,9 @@ def patterns_profile(project_path: str, config_path: Optional[str]) -> None:
 
     Includes enabled/disabled patterns and custom weights.
     """
-    console.print("\n📁 [bold blue]Project Pattern Profile[/bold blue]\n")
+    console.print()
+    _auth_banner("Project Profile")
+    console.print()
 
     cfg = _load_config(config_path, None, None)
     _setup_logging()
@@ -1673,7 +2416,7 @@ def patterns_profile(project_path: str, config_path: Optional[str]) -> None:
     try:
         profile = storage.get_project_profile(project_root)
     except Exception as e:
-        console.print(f"[red]❌ Failed to load project profile: {e}[/red]")
+        console.print(f"[red]Failed to load project profile: {e}[/red]")
         raise SystemExit(1)
 
     console.print(f"Project ID: [bold]{profile.project_id}[/bold]")
@@ -1696,7 +2439,7 @@ def patterns_profile(project_path: str, config_path: Optional[str]) -> None:
     )
 
     if not all_pattern_ids:
-        console.print("[yellow]ℹ️  No project-specific tuning has been applied yet.[/yellow]")
+        console.print("[yellow]No project-specific tuning has been applied yet.[/yellow]")
         return
 
     for pattern_id in sorted(all_pattern_ids):
@@ -1704,7 +2447,7 @@ def patterns_profile(project_path: str, config_path: Optional[str]) -> None:
         weight = profile.get_pattern_weight(pattern_id, default=1.0)
         table.add_row(
             pattern_id,
-            "✅" if enabled else "❌",
+            "Yes" if enabled else "No",
             f"{weight:.2f}",
         )
 
@@ -1712,4 +2455,4 @@ def patterns_profile(project_path: str, config_path: Optional[str]) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(prog_name="refactron")
