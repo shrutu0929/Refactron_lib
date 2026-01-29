@@ -90,7 +90,7 @@ def _auth_banner(title: str) -> None:
             style="panel.border",
             box=box.ROUNDED,
             padding=(1, 2),
-            subtitle="[secondary]v1.0.12[/secondary]",
+            subtitle="[secondary]v1.0.13[/secondary]",
             subtitle_align="right",
         )
     )
@@ -566,7 +566,7 @@ def _run_startup_animation() -> None:
             info_table.add_column(style="dim", justify="right")
             info_table.add_column(style="bold white")
 
-            info_table.add_row("Version:", "v1.0.12")
+            info_table.add_row("Version:", "v1.0.13")
             info_table.add_row("Python:", sys.version.split()[0])
             info_table.add_row("OS:", platform.system())
 
@@ -603,7 +603,7 @@ def _run_startup_animation() -> None:
     for line in LOGO_LINES:
         console.print(Align.center(Text(line, style="bold #ffffff")))
     console.print(Align.center(Text(subtitle_text, style="italic #8a8a8a")))
-    console.print(Align.center(Text("v1.0.12", style="dim")))
+    console.print(Align.center(Text("v1.0.13", style="dim")))
     console.print()
 
 
@@ -714,7 +714,7 @@ def _run_minimal_loop(ctx: click.Context) -> None:
             if choice == "1":
                 _print_custom_help(ctx)
             elif choice == "2":
-                console.print("\nRefactron CLI v1.0.12")
+                console.print("\nRefactron CLI v1.0.13")
             elif choice == "3":
                 console.print("Goodbye!")
                 break

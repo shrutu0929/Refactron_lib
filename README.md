@@ -84,7 +84,7 @@ refactron autofix myfile.py --apply
 
 ## Development Status
 
-Stable release (v1.0.1). Tested on Python 3.8-3.12.
+Stable release (v1.0.13). Tested on Python 3.8-3.12.
 
 - 135 tests, 84% code coverage
 - 96.8% analyzer module coverage
