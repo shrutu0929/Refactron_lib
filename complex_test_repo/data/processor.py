@@ -32,20 +32,18 @@ def get_item_detail(item):
     return {"id": item, "details": "example"}
 
 def deep_nesting_example(a, b, c, d):
-    '''
-    Deep nesting example.
-    
-    Args:
-        a: The a
-        b: The b
-        c: The c
-        d: The d
-    '''
-    # Complexity issue: Deep nesting
-    if a:
-        if b:
-            for i in range(10):
-                if c:
-                    while d:
-                        print(i)
-                        break
+    '''Refactored version using early returns (guard clauses).'''
+    # Check invalid conditions first and return early
+    if not a:
+        return default_value
+
+    # Each subsequent check is at the same level - no deep nesting
+    if not meets_requirement_1():
+        return early_result_1
+
+    if not meets_requirement_2():
+        return early_result_2
+
+    # Main logic is at top level - easy to read
+    result = perform_main_operation()
+    return result
