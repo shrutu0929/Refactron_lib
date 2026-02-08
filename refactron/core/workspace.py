@@ -11,6 +11,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -205,20 +206,31 @@ class WorkspaceManager:
             for line in content.split("\n"):
                 line = line.strip()
                 if line.startswith("url = "):
-                    url = line.replace("url = ", "")
+                    url = line.replace("url = ", "").strip()
 
                     # Extract repo name from URL
                     # HTTPS: https://github.com/user/repo.git
                     # SSH: git@github.com:user/repo.git
-                    if "github.com" in url:
-                        if url.startswith("git@github.com:"):
-                            repo_path = url.replace("git@github.com:", "").replace(".git", "")
-                        elif "github.com/" in url:
-                            repo_path = url.split("github.com/")[1].replace(".git", "")
-                        else:
+                    
+                    # Handle SSH GitHub URLs explicitly (SCP-like syntax)
+                    if url.startswith("git@github.com:"):
+                        repo_path = url.replace("git@github.com:", "", 1).replace(".git", "")
+                        if repo_path:
+                            return repo_path
+                    
+                    # Handle HTTPS/HTTP GitHub URLs with proper parsing
+                    elif "://" in url:
+                        try:
+                            parsed = urlparse(url)
+                            # Validate hostname is exactly github.com (not a substring)
+                            if parsed.hostname == "github.com":
+                                path = parsed.path.lstrip("/")
+                                if path.endswith(".git"):
+                                    path = path[:-4]  # Remove .git suffix
+                                if path:
+                                    return path
+                        except ValueError:
                             continue
-
-                        return repo_path
 
         except (IOError, OSError):
             pass
