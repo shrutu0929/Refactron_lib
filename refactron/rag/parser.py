@@ -58,8 +58,14 @@ class CodeParser:
                 "tree-sitter is not available. Install with: pip install tree-sitter tree-sitter-python"
             )
 
-        # Initialize Python language - wrap capsule with Language
-        PY_LANGUAGE = Language(tspython.language())
+        # Initialize Python language - handle different tree-sitter API versions
+        # Older versions (e.g., in Python 3.8) require 'name' parameter
+        try:
+            PY_LANGUAGE = Language(tspython.language(), "python")
+        except TypeError:
+            # Newer API doesn't need name parameter
+            PY_LANGUAGE = Language(tspython.language())
+        
         self.parser = Parser(PY_LANGUAGE)
 
     def parse_file(self, file_path: Path) -> ParsedFile:
