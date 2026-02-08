@@ -22,6 +22,12 @@ except ImportError:
 from refactron.rag.chunker import CodeChunk
 from refactron.rag.parser import CodeParser, ParsedFile
 
+# Import for type hints
+try:
+    from refactron.llm.client import GroqClient
+except ImportError:
+    GroqClient = None  # type: ignore
+
 
 @dataclass
 class IndexStats:
