@@ -59,12 +59,22 @@ class CodeParser:
             )
 
         # Initialize Python language - handle different tree-sitter API versions
-        # Older versions (e.g., in Python 3.8) require 'name' parameter
-        try:
-            PY_LANGUAGE = Language(tspython.language(), "python")
-        except TypeError:
-            # Newer API doesn't need name parameter
-            PY_LANGUAGE = Language(tspython.language())
+        lang = tspython.language()
+
+        # In some versions, tspython.language() already returns a Language object
+        if isinstance(lang, Language):
+            PY_LANGUAGE = lang
+        else:
+            # Try newer API first (single argument)
+            try:
+                PY_LANGUAGE = Language(lang)
+            except TypeError:
+                # Try older API (needs name)
+                try:
+                    PY_LANGUAGE = Language(lang, "python")
+                except TypeError:
+                    # Last resort: try as keyword
+                    PY_LANGUAGE = Language(lang, name="python")
 
         self.parser = Parser(PY_LANGUAGE)
 

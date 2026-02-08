@@ -212,8 +212,9 @@ class PatternFingerprinter:
             if hasattr(ast, "unparse"):
                 return self._normalize_code(ast.unparse(tree))
 
-            # Fallback to standard normalization if unparse is not available
-            return self._normalize_code(code)
+            # Fallback for Python 3.8: Use ast.dump for a stable structural representation
+            # We use this as a source for the hash, so it just needs to be consistent
+            return self._normalize_code(ast.dump(tree))
 
         except (SyntaxError, ValueError):
             # If AST parsing fails, fallback to basic normalization
