@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from refactron.rag.chunker import CodeChunker, CodeChunk
+from refactron.rag.chunker import CodeChunk, CodeChunker
 from refactron.rag.parser import CodeParser
 
 
@@ -41,7 +41,7 @@ def another_function():
 
 class TestClass:
     """Test class docstring."""
-    
+
     def method_one(self):
         """Method docstring."""
         return 1

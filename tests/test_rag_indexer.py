@@ -1,11 +1,11 @@
 """Tests for the RAG indexer module."""
 
+import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, create_autospec, patch
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch, create_autospec
-import sys
 
 # Create a comprehensive mock for transformers that handles all submodule access
 transformers_mock = MagicMock()
@@ -52,7 +52,7 @@ def hello():
 
 class Calculator:
     """A simple calculator."""
-    
+
     def add(self, x, y):
         """Add two numbers."""
         return x + y

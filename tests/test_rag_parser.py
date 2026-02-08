@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from refactron.rag.parser import CodeParser, ParsedFile, ParsedFunction, ParsedClass
+from refactron.rag.parser import CodeParser, ParsedClass, ParsedFile, ParsedFunction
 
 
 class TestCodeParser:
@@ -36,11 +36,11 @@ def another_function():
 
 class TestClass:
     """A test class."""
-    
+
     def method_one(self):
         """First method."""
         return 1
-    
+
     def method_two(self, param):
         """Second method."""
         return param * 2

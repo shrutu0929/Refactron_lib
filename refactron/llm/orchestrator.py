@@ -4,14 +4,14 @@ import json
 import logging
 import os
 import re
-from typing import Optional, List, Union
-
 from pathlib import Path
+from typing import List, Optional, Union
+
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
-from refactron.llm.client import GroqClient
 from refactron.llm.backend_client import BackendLLMClient
+from refactron.llm.client import GroqClient
 from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
-from refactron.llm.prompts import SYSTEM_PROMPT, SUGGESTION_PROMPT, DOCUMENTATION_PROMPT
+from refactron.llm.prompts import DOCUMENTATION_PROMPT, SUGGESTION_PROMPT, SYSTEM_PROMPT
 from refactron.llm.safety import SafetyGate
 from refactron.rag.retriever import ContextRetriever
 

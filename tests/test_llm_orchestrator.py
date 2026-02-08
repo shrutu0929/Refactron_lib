@@ -1,13 +1,14 @@
 """Tests for LLM Orchestrator."""
 
 import json
-from unittest.mock import Mock, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, Mock
 
 import pytest
-from refactron.core.models import CodeIssue, IssueLevel, IssueCategory
+
+from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
+from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
 from refactron.llm.orchestrator import LLMOrchestrator
-from refactron.llm.models import SuggestionStatus, RefactoringSuggestion
 from refactron.rag.retriever import RetrievedContext
 
 

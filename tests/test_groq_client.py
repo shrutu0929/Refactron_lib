@@ -1,8 +1,9 @@
 """Tests for the Groq LLM client."""
 
 import os
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from refactron.llm.client import GroqClient
 

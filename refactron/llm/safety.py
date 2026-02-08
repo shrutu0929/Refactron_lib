@@ -3,7 +3,7 @@
 import ast
 from typing import List, Optional
 
-from refactron.llm.models import SafetyCheckResult, RefactoringSuggestion
+from refactron.llm.models import RefactoringSuggestion, SafetyCheckResult
 
 
 class SafetyGate:

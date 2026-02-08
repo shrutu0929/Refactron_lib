@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 try:
-    from tree_sitter import Language, Parser, Node
     import tree_sitter_python as tspython
+    from tree_sitter import Language, Node, Parser
 
     TREE_SITTER_AVAILABLE = True
 except ImportError:

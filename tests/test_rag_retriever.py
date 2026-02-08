@@ -2,9 +2,9 @@
 
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 # Create a comprehensive mock for transformers
 transformers_mock = MagicMock()
