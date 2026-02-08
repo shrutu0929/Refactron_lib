@@ -1,16 +1,16 @@
-
 import time
 
+
 def process_batch(data_list):
-    '''
+    """
     Process batch.
-    
+
     Args:
         data_list: Data to process
-    
+
     Returns:
         The result of the operation
-    '''
+    """
     # Performance issue: N+1 pattern or inefficient iteration
     results = []
     for item in data_list:
@@ -19,20 +19,22 @@ def process_batch(data_list):
         results.append(detail)
     return results
 
+
 def get_item_detail(item):
-    '''
+    """
     Get item detail.
-    
+
     Args:
         item: The item
-    
+
     Returns:
         The requested item detail
-    '''
+    """
     return {"id": item, "details": "example"}
 
+
 def deep_nesting_example(a, b, c, d):
-    '''Refactored version using early returns (guard clauses).'''
+    """Refactored version using early returns (guard clauses)."""
     # Check invalid conditions first and return early
     if not a:
         return default_value
