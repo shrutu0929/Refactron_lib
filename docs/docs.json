@@ -4,9 +4,9 @@
   "name": "Refactron",
   "description": "Intelligent Python code refactoring with AI-powered suggestions and pattern learning",
   "colors": {
-    "primary": "#10B981",
+    "primary": "#38ABBD",
     "light": "#ECFDF5",
-    "dark": "#065F46"
+    "dark": "#67E8F9"
   },
   "fonts": {
     "family": "Space Grotesk"
