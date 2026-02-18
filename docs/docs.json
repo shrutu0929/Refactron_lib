@@ -5,8 +5,8 @@
   "description": "Intelligent Python code refactoring with AI-powered suggestions and pattern learning",
   "colors": {
     "primary": "#38ABBD",
-    "light": "#ECFDF5",
-    "dark": "#67E8F9"
+    "light": "#38ABBD",
+    "dark": "#38ABBD"
   },
   "fonts": {
     "family": "Space Grotesk"
