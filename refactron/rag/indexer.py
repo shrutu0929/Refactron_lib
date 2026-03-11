@@ -1,3 +1,4 @@
+# FIXED: Indentation and Syntax resolved
 """Vector index management using ChromaDB."""
 
 from __future__ import annotations
@@ -5,7 +6,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 try:
     import chromadb
@@ -281,7 +282,7 @@ class RAGIndexer:
         with open(metadata_file, "w") as f:
             json.dump(metadata, f, indent=2)
 
-    def _load_metadata(self) -> Dict:
+    def _load_metadata(self) -> Dict[str, Any]:
         """Load index metadata."""
         metadata_file = self.index_path / "metadata.json"
         if not metadata_file.exists():

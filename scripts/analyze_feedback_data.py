@@ -19,7 +19,6 @@ from refactron.patterns.storage import PatternStorage
 
 def analyze_feedback() -> Optional[Dict]:
     """Analyze all available feedback data."""
-
     # Find all pattern storage directories
     root = Path(".")
     storage_dirs = list(root.glob("**/.refactron/patterns"))

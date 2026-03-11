@@ -1,11 +1,11 @@
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from refactron.analyzers.code_smell_analyzer import CodeSmellAnalyzer
 from refactron.autofix.engine import AutoFixEngine
 from refactron.core.config import RefactronConfig
-from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
+from refactron.core.models import CodeIssue
 from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
 
 
@@ -19,6 +19,7 @@ class TestAIAutoFixIntegration(unittest.TestCase):
         self.analyzer = CodeSmellAnalyzer(self.config, self.orchestrator)
         # Use a higher safety level to allow AI suggestions (0.5)
         from refactron.autofix.models import FixRiskLevel
+
         self.engine = AutoFixEngine(safety_level=FixRiskLevel.HIGH)
 
     def test_high_confidence_magic_number_triggers_suggestion(self):
@@ -41,7 +42,7 @@ class TestAIAutoFixIntegration(unittest.TestCase):
             reasoning="Magic numbers reduce maintainability. Using a named constant is better.",
             model_name="mock-model",
             confidence_score=0.9,
-            status=SuggestionStatus.PENDING
+            status=SuggestionStatus.PENDING,
         )
         self.orchestrator.generate_suggestion.return_value = suggestion
 
@@ -56,10 +57,10 @@ class TestAIAutoFixIntegration(unittest.TestCase):
 
         # Verify engine can fix it using the AI suggestion
         self.assertTrue(self.engine.can_fix(magic_number_issue))
-        
+
         # Apply the fix
         result = self.engine.fix(magic_number_issue, source_code, preview=False)
-        
+
         self.assertTrue(result.success, f"Fix failed: {result.reason}")
         self.assertEqual(result.fixed, proposed_code)
         self.assertIn("PI = 3.14159", result.fixed)
@@ -80,7 +81,9 @@ class TestAIAutoFixIntegration(unittest.TestCase):
         # Verify magic number issue exists but NO suggestion was generated (stays default)
         magic_number_issue = next((i for i in issues if i.rule_id == "S004"), None)
         self.assertIsNotNone(magic_number_issue)
-        self.assertEqual(magic_number_issue.suggestion, "Consider extracting this number into a named constant.")
+        self.assertEqual(
+            magic_number_issue.suggestion, "Consider extracting this number into a named constant."
+        )
         self.orchestrator.generate_suggestion.assert_not_called()
 
 

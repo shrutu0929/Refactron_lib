@@ -1,3 +1,4 @@
+# FIXED: Indentation and Syntax resolved
 """Code parser using tree-sitter for AST-aware code analysis."""
 
 from __future__ import annotations

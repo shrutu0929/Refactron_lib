@@ -7,13 +7,8 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 from refactron.analyzers.base_analyzer import BaseAnalyzer
-from refactron.analyzers.code_smell_analyzer import CodeSmellAnalyzer
-from refactron.analyzers.complexity_analyzer import ComplexityAnalyzer
-from refactron.analyzers.dead_code_analyzer import DeadCodeAnalyzer
-from refactron.analyzers.dependency_analyzer import DependencyAnalyzer
-from refactron.analyzers.performance_analyzer import PerformanceAnalyzer
-from refactron.analyzers.security_analyzer import SecurityAnalyzer
-from refactron.analyzers.type_hint_analyzer import TypeHintAnalyzer
+
+# Analyzers are imported locally in _initialize_analyzers to avoid circular imports
 from refactron.core.analysis_result import AnalysisResult, FileAnalysisError
 from refactron.core.cache import ASTCache
 from refactron.core.config import RefactronConfig
@@ -178,24 +173,38 @@ class Refactron:
     def _initialize_analyzers(self) -> None:
         """Initialize all enabled analyzers."""
         if "complexity" in self.config.enabled_analyzers:
+            from refactron.analyzers.complexity_analyzer import ComplexityAnalyzer
+
             self.analyzers.append(ComplexityAnalyzer(self.config))
 
         if "code_smells" in self.config.enabled_analyzers:
+            from refactron.analyzers.code_smell_analyzer import CodeSmellAnalyzer
+
             self.analyzers.append(CodeSmellAnalyzer(self.config))
 
         if "security" in self.config.enabled_analyzers:
+            from refactron.analyzers.security_analyzer import SecurityAnalyzer
+
             self.analyzers.append(SecurityAnalyzer(self.config))
 
         if "dependency" in self.config.enabled_analyzers:
+            from refactron.analyzers.dependency_analyzer import DependencyAnalyzer
+
             self.analyzers.append(DependencyAnalyzer(self.config))
 
         if "dead_code" in self.config.enabled_analyzers:
+            from refactron.analyzers.dead_code_analyzer import DeadCodeAnalyzer
+
             self.analyzers.append(DeadCodeAnalyzer(self.config))
 
         if "type_hints" in self.config.enabled_analyzers:
+            from refactron.analyzers.type_hint_analyzer import TypeHintAnalyzer
+
             self.analyzers.append(TypeHintAnalyzer(self.config))
 
         if "performance" in self.config.enabled_analyzers:
+            from refactron.analyzers.performance_analyzer import PerformanceAnalyzer
+
             self.analyzers.append(PerformanceAnalyzer(self.config))
 
     def _initialize_refactorers(self) -> None:
