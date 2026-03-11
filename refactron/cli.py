@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 
 import click
 import requests  # type: ignore
-import yaml
+import yaml  # type: ignore
 from rich import box
 from rich.align import Align
 from rich.console import Console
@@ -1146,7 +1146,7 @@ def _interactive_file_selector(workspace_path: Path) -> Path:
         console.print(
             f"\n[success]✓ Selected: {selected_path.relative_to(workspace_path)}[/success]\n"
         )
-        return selected_path
+        return Path(selected_path)
 
     except (KeyboardInterrupt, EOFError):
         console.print("\n[yellow]Selection cancelled.[/yellow]")
@@ -3253,7 +3253,7 @@ def patterns_profile(project_path: str, config_path: Optional[str]) -> None:
 @click.option("--line", type=int, help="Specific line number to fix")
 @click.option("--interactive/--no-interactive", default=True, help="Use interactive mode")
 @click.option("--apply/--no-apply", default=False, help="Apply the suggested changes to the file")
-def suggest(target: Optional[str], line: Optional[int], interactive: bool, apply: bool):
+def suggest(target: Optional[str], line: Optional[int], interactive: bool, apply: bool) -> None:
     """
     Generate AI-powered refactoring suggestions.
 
@@ -3413,7 +3413,7 @@ def suggest(target: Optional[str], line: Optional[int], interactive: bool, apply
     "--apply/--no-apply", default=False, help="Apply the documentation changes to the file"
 )
 @click.option("--interactive/--no-interactive", default=True, help="Use interactive mode for apply")
-def document(target: str, apply: bool, interactive: bool):
+def document(target: str, apply: bool, interactive: bool) -> None:
     """
     Generate Google-style docstrings for a Python file.
 

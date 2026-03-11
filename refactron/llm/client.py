@@ -79,7 +79,7 @@ class GroqClient:
             max_tokens=max_tokens or self.max_tokens,
         )
 
-        return response.choices[0].message.content
+        return str(response.choices[0].message.content or "")
 
     def check_health(self) -> bool:
         """Check if the Groq API is accessible.

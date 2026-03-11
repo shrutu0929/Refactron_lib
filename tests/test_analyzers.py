@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 from refactron.analyzers.code_smell_analyzer import CodeSmellAnalyzer
 from refactron.analyzers.complexity_analyzer import ComplexityAnalyzer
 from refactron.core.config import RefactronConfig
-from refactron.llm.orchestrator import LLMOrchestrator
 
 
 def test_complexity_analyzer() -> None:
@@ -62,7 +61,7 @@ def test_code_smell_ai_triage_filtering() -> None:
     config = RefactronConfig(enable_ai_triage=True)
 
     # Mock the LLMOrchestrator
-    mock_orchestrator = MagicMock(spec=LLMOrchestrator)
+    mock_orchestrator = MagicMock()
 
     # Create the analyzer with the mocked orchestrator
     analyzer = CodeSmellAnalyzer(config, orchestrator=mock_orchestrator)

@@ -59,7 +59,7 @@ class MemoryProfiler:
         # Try to import psutil for accurate memory tracking
         self._psutil_available = False
         try:
-            import psutil
+            import psutil  # type: ignore
 
             self._psutil = psutil
             self._process = psutil.Process(os.getpid())

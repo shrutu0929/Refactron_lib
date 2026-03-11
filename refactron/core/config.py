@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
+import yaml  # type: ignore
 
 from refactron.core.config_loader import ConfigLoader
 from refactron.core.config_validator import ConfigValidator

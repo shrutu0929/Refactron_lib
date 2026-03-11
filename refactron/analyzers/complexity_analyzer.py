@@ -4,8 +4,8 @@ import ast
 from pathlib import Path
 from typing import List, Union
 
-from radon.complexity import cc_visit
-from radon.metrics import mi_visit
+from radon.complexity import cc_visit  # type: ignore
+from radon.metrics import mi_visit  # type: ignore
 
 from refactron.analyzers.base_analyzer import BaseAnalyzer
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel

@@ -9,7 +9,7 @@ from typing import List, Optional
 try:
     import chromadb
     from chromadb.config import Settings
-    from sentence_transformers import SentenceTransformer
+    from sentence_transformers import SentenceTransformer  # type: ignore
 
     CHROMA_AVAILABLE = True
 except ImportError:
@@ -50,7 +50,8 @@ class ContextRetriever:
         """
         if not CHROMA_AVAILABLE:
             raise RuntimeError(
-                "ChromaDB is not available. Install with: pip install chromadb sentence-transformers"
+                "ChromaDB is not available. Install with: "
+                "pip install chromadb sentence-transformers"
             )
 
         self.workspace_path = Path(workspace_path)

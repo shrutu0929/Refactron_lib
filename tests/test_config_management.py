@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-import yaml
+import yaml  # type: ignore
 
 from refactron.core.config import RefactronConfig
 from refactron.core.config_loader import ConfigLoader

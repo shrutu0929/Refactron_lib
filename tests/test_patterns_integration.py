@@ -257,12 +257,8 @@ def func2():
             # Patterns should be stored in separate directories
             assert storage1_dir.exists() or storage2_dir.exists()
 
-            # Verify actual pattern isolation: patterns from project1 should not be in project2
-            # and vice versa (they use different storage directories)
-            pattern_hashes1 = {p.pattern_hash for p in patterns1.values()}
-            pattern_hashes2 = {p.pattern_hash for p in patterns2.values()}
-
-            # Verify the key property: storage directories are different (isolation works)
+            # Verify actual pattern isolation
+            assert refactron1.pattern_storage.storage_dir != refactron2.pattern_storage.storage_dir
             # Note: Anonymized fingerprinting may make structurally similar code have same hash
             # which is correct behavior - the test should check storage isolation
             assert refactron1.pattern_storage.storage_dir != refactron2.pattern_storage.storage_dir

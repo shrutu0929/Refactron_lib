@@ -4,7 +4,7 @@ import copy
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import yaml
+import yaml  # type: ignore
 
 from refactron.core.config_validator import ConfigValidator
 from refactron.core.exceptions import ConfigError

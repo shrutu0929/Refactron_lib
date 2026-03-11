@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
 from refactron.llm.backend_client import BackendLLMClient
@@ -245,6 +245,24 @@ class LLMOrchestrator:
                 model_name=self.client.model,
                 status=SuggestionStatus.FAILED,
             )
+
+    def evaluate_issues_batch(self, issues: List[CodeIssue], source_code: str) -> Dict[str, float]:
+        """Batch evaluate confidence for multiple issues.
+
+        Args:
+            issues: List of issues to evaluate.
+            source_code: The source code context.
+
+        Returns:
+            A dictionary mapping issue rule_ids (or fallback IDs) to a confidence score.
+        """
+        # Default implementation returns 1.0 (high confidence) for all issues
+        # Can be enhanced to actually call the LLM for batch triage
+        scores = {}
+        for i, issue in enumerate(issues):
+            issue_id = getattr(issue, "rule_id", None) or f"issue_{i}"
+            scores[issue_id] = 1.0
+        return scores
 
     def _clean_json_response(self, text: str) -> str:
         """Clean LLM response to extract JSON."""
