@@ -63,6 +63,8 @@ class RAGIndexer:
             raise RuntimeError(
                 "ChromaDB is not available. Install with: "
                 "pip install chromadb sentence-transformers"
+                "ChromaDB is not available. "
+                "Install with: pip install chromadb sentence-transformers"
             )
 
         self.workspace_path = Path(workspace_path)
@@ -70,6 +72,7 @@ class RAGIndexer:
         self.index_path.mkdir(exist_ok=True)
 
         # Initialize LLM client for summarization
+        # GroqClient is used for type hints and potential init below
 
         self.llm_client = llm_client
 
@@ -184,6 +187,7 @@ class RAGIndexer:
                     if summary:
                         # Prepend summary to content for embedding
                         # (makes it searchable by plain English)
+                        # Prepend summary for semantic searchability
                         chunk.content = f"Summary: {summary}\n\n{chunk.content}"
                         chunk.metadata["ai_summary"] = summary
                 except Exception as e:
@@ -276,7 +280,7 @@ class RAGIndexer:
             index_path=str(self.index_path),
         )
 
-    def _save_metadata(self, metadata: dict) -> None:
+    def _save_metadata(self, metadata: Dict[str, Any]) -> None:
         """Save index metadata."""
         metadata_file = self.index_path / "metadata.json"
         with open(metadata_file, "w") as f:
@@ -290,3 +294,4 @@ class RAGIndexer:
 
         with open(metadata_file, "r") as f:
             return cast(Dict, json.load(f))
+            return cast(Dict[str, Any], json.load(f))

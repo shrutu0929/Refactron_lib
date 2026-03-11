@@ -13,11 +13,16 @@ import sys
 from collections import Counter
 from pathlib import Path
 from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
-from refactron.patterns.storage import PatternStorage
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from refactron.patterns.storage import PatternStorage  # noqa: E402
 
 
 def analyze_feedback() -> Optional[Dict]:
+def analyze_feedback() -> Optional[Dict[str, Any]]:
     """Analyze all available feedback data."""
     # Find all pattern storage directories
     root = Path(".")
