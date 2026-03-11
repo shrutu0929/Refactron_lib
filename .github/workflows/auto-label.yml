@@ -4,13 +4,14 @@ name: Auto-label Bot
 on:
   issues:
     types: [opened, edited]
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize]
 
+# Default permissions for the workflow
 permissions:
+  contents: read
   issues: write
   pull-requests: write
-  contents: read
 
 jobs:
   label-issues:
@@ -20,6 +21,7 @@ jobs:
       - name: Auto-label issues
         uses: actions/github-script@v8
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo, number } = context.issue;
             const issue = context.payload.issue;
@@ -116,7 +118,7 @@ jobs:
             }
 
   label-pull-requests:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -127,6 +129,7 @@ jobs:
       - name: Auto-label PRs
         uses: actions/github-script@v8
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo, number } = context.issue;
             const pr = context.payload.pull_request;
