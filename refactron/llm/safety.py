@@ -92,6 +92,7 @@ class SafetyGate:
 
         def get_imports(code: str) -> Set[str]:
             imports: Set[str] = set()
+            imports = set()
             try:
                 tree = ast.parse(code)
                 for node in ast.walk(tree):

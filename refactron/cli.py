@@ -7,7 +7,7 @@ import webbrowser
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 from urllib.parse import urlencode
 
 import click
@@ -1147,6 +1147,7 @@ def _interactive_file_selector(workspace_path: Path) -> Path:
             f"\n[success]✓ Selected: {selected_path.relative_to(workspace_path)}[/success]\n"
         )
         return Path(selected_path)
+        return cast(Path, selected_path)
 
     except (KeyboardInterrupt, EOFError):
         console.print("\n[yellow]Selection cancelled.[/yellow]")

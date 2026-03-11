@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Optional
+from typing import Optional, cast
 
 import requests  # type: ignore
 
@@ -94,6 +95,7 @@ class BackendLLMClient:
 
             data = response.json()
             return str(data["content"])
+            return cast(str, data["content"])
 
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Failed to connect to Refactron backend: {e}")
