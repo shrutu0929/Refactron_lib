@@ -1,10 +1,11 @@
+# FIXED: Indentation and Syntax resolved
 """Code parser using tree-sitter for AST-aware code analysis."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 try:
     import tree_sitter_python as tspython
@@ -51,32 +52,52 @@ class ParsedFile:
 class CodeParser:
     """AST-aware code parser using tree-sitter."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the parser."""
         if not TREE_SITTER_AVAILABLE:
             raise RuntimeError(
-                "tree-sitter is not available. Install with: pip install tree-sitter tree-sitter-python"
+                "tree-sitter is not available. Install with: "
+                "pip install tree-sitter tree-sitter-python"
             )
 
         # Initialize Python language - handle different tree-sitter API versions
-        lang = tspython.language()
+        lang_data = tspython.language()
 
-        # In some versions, tspython.language() already returns a Language object
-        if isinstance(lang, Language):
-            PY_LANGUAGE = lang
+        # Try to get a proper Language object
+        py_language = None
+        if isinstance(lang_data, Language):
+            py_language = lang_data
         else:
             # Try newer API first (single argument)
             try:
-                PY_LANGUAGE = Language(lang)
-            except TypeError:
+                py_language = Language(lang_data)
+            except (TypeError, ValueError):
                 # Try older API (needs name)
                 try:
-                    PY_LANGUAGE = Language(lang, "python")
-                except TypeError:
-                    # Last resort: try as keyword
-                    PY_LANGUAGE = Language(lang, name="python")
+                    py_language = Language(lang_data, "python")
+                except (TypeError, ValueError):
+                    try:
+                        py_language = Language(lang_data, name="python")
+                    except (TypeError, ValueError):
+                        # Fallback to using the raw data if it can be used directly
+                        py_language = lang_data
 
-        self.parser = Parser(PY_LANGUAGE)
+        # Initialize Parser - handle different tree-sitter API versions
+        try:
+            self.parser = Parser(py_language)
+        except Exception:
+            # Older API might not take it in constructor
+            self.parser = Parser()
+            try:
+                self.parser.set_language(py_language)
+            except Exception:
+                # If everything fails, it might be due to a mismatch between
+                # tree-sitter-python and tree-sitter versions.
+                # There's not much more we can do here but raise with context.
+                raise RuntimeError(
+                    "Failed to initialize tree-sitter parser with language "
+                    f"data of type {type(lang_data)}"
+                )
 
     def parse_file(self, file_path: Path) -> ParsedFile:
         """Parse a Python file.
@@ -256,7 +277,7 @@ class CodeParser:
 
     def _extract_parameters(self, node: Node, source: bytes) -> List[str]:
         """Extract function parameters."""
-        params = []
+        params: List[str] = []
         params_node = node.child_by_field_name("parameters")
         if not params_node:
             return params

@@ -34,6 +34,7 @@ class AutoFixEngine:
         from refactron.autofix.fixers import (
             AddDocstringsFixer,
             AddMissingCommasFixer,
+            AISuggestionFixer,
             ConvertToFStringFixer,
             ExtractMagicNumbersFixer,
             FixIndentationFixer,
@@ -64,6 +65,7 @@ class AutoFixEngine:
             FixIndentationFixer,
             AddMissingCommasFixer,
             RemovePrintStatementsFixer,
+            AISuggestionFixer,
         ]:
             fixer = fixer_class()
             fixers[fixer.name] = fixer
@@ -80,7 +82,9 @@ class AutoFixEngine:
         Returns:
             True if a fixer is available, False otherwise
         """
-        return issue.rule_id in self.fixers if issue.rule_id else False
+        if issue.rule_id in self.fixers:
+            return True
+        return bool(issue.suggestion)
 
     def fix(self, issue: CodeIssue, code: str, preview: bool = True) -> FixResult:
         """
@@ -99,7 +103,12 @@ class AutoFixEngine:
                 success=False, reason=f"No fixer available for issue: {issue.rule_id or 'unknown'}"
             )
 
-        fixer = self.fixers[issue.rule_id]
+        # Prefer rule-based fixer if available, otherwise use AI suggestion
+        if issue.rule_id and issue.rule_id in self.fixers:
+            fixer = self.fixers[issue.rule_id]
+        else:
+            # Must have issue.suggestion based on can_fix() check
+            fixer = self.fixers["ai_suggestion"]
 
         # Check risk level
         if fixer.risk_score > self.safety_level.value:
