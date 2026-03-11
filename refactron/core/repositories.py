@@ -124,6 +124,8 @@ def list_repositories(api_base_url: str, timeout_seconds: int = 10) -> List[Repo
                         "Unexpected API response format. "
                         "Expected list or dict with 'repositories' key. "
                         f"Got: {type(data)} with keys: "
+                        f"Unexpected API response format. Expected list or dict with "
+                        f"'repositories' key. Got: {type(data)} with keys: "
                         f"{list(data.keys()) if isinstance(data, dict) else 'N/A'}"
                     )
             else:
