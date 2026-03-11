@@ -108,8 +108,8 @@ def test_evaluate_issues_batch_fallback_on_error(mock_llm_client, mock_retriever
 
     result = orchestrator.evaluate_issues_batch(issues, "source")
 
-    # It should fallback to 0.5 confidence for 'issue_0'
-    assert result == {"issue_0": 0.5}
+    # It should fallback to 0.5 confidence for the generated issue ID
+    assert result == {"issue:20:0": 0.5}
 
 
 def test_evaluate_issues_batch_fallback_on_bad_json(mock_llm_client, mock_retriever):
@@ -129,4 +129,4 @@ def test_evaluate_issues_batch_fallback_on_bad_json(mock_llm_client, mock_retrie
 
     result = orchestrator.evaluate_issues_batch(issues, "source")
 
-    assert result == {"issue_0": 0.5}
+    assert result == {"issue:20:0": 0.5}

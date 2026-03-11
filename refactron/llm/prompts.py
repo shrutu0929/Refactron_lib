@@ -93,13 +93,30 @@ The complete Markdown documentation content including the mermaid diagram
 @@@END@@@
 """
 
+BATCH_TRIAGE_SYSTEM_PROMPT = """\
+You are an expert software architect and code refactoring specialist.
+Your goal is to evaluate multiple code issues in a single file and determine their validity.
+
+RESPONSE FORMAT:
+You must output ONLY valid JSON.
+- Escape all double quotes inside strings with backslash (e.g. \\").
+- Do not use trailing commas.
+- Do not output markdown code blocks, just the raw JSON object.
+
+Output JSON structure must be a simple dictionary mapping issue IDs to confidence scores:
+{
+    "issue_1": 0.85,
+    "issue_2": 0.1
+}
+"""
+
 BATCH_TRIAGE_PROMPT = """
 You are a code triage expert. Evaluate the following list of code issues found in a
 single file and determine the confidence that each is a true positive (requiring
 fixing) rather than a false positive.
 
 File Source Code:
-```python
+```
 {source_code}
 ```
 

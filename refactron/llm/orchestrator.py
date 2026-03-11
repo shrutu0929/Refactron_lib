@@ -13,6 +13,7 @@ from refactron.llm.client import GroqClient
 from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
 from refactron.llm.prompts import (
     BATCH_TRIAGE_PROMPT,
+    BATCH_TRIAGE_SYSTEM_PROMPT,
     DOCUMENTATION_PROMPT,
     SUGGESTION_PROMPT,
     SYSTEM_PROMPT,
@@ -323,7 +324,7 @@ class LLMOrchestrator:
         # 4. Call LLM
         try:
             response_text = self.client.generate(
-                prompt=prompt, system=SYSTEM_PROMPT, temperature=0.1
+                prompt=prompt, system=BATCH_TRIAGE_SYSTEM_PROMPT, temperature=0.1
             )
             clean_text = self._clean_json_response(response_text)
             data = json.loads(clean_text, strict=False)
