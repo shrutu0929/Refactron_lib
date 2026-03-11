@@ -3,14 +3,24 @@
 import ast
 import copy
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from refactron.analyzers.base_analyzer import BaseAnalyzer
+from refactron.core.config import RefactronConfig
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
+from refactron.llm.orchestrator import LLMOrchestrator
 
 
 class CodeSmellAnalyzer(BaseAnalyzer):
     """Detects common code smells and anti-patterns."""
+
+    def __init__(
+        self,
+        config: RefactronConfig,
+        orchestrator: Optional[LLMOrchestrator] = None,
+    ):
+        super().__init__(config)
+        self.orchestrator = orchestrator
 
     @property
     def name(self) -> str:
@@ -50,6 +60,29 @@ class CodeSmellAnalyzer(BaseAnalyzer):
                 line_number=getattr(e, "lineno", 1),
             )
             issues.append(issue)
+
+        # AI Triage: Filter out safe/intentional smells
+        if self.config.enable_ai_triage and self.orchestrator and issues:
+            # Batch evaluate all issues
+            # evaluate_issues_batch returns Dict[str, float] mapping issue_id to confidence
+            confidence_scores = self.orchestrator.evaluate_issues_batch(issues, source_code)
+
+            # Filter issues with a confidence < 0.3
+            # (meaning LLM thinks it might be a false positive/safe)
+            final_issues = []
+            for i, issue in enumerate(issues):
+                # evaluate_issues_batch defaults to f"issue_{i}" if rule_id is absent
+                issue_id = getattr(issue, "rule_id", None) or f"issue_{i}"
+
+                confidence = confidence_scores.get(issue_id, 1.0)
+
+                # Optional: Attach the confidence score to the issue metadata
+                # for reporting/debugging
+                issue.metadata["validation_confidence"] = confidence
+
+                if confidence >= 0.3:
+                    final_issues.append(issue)
+            issues = final_issues
 
         return issues
 
