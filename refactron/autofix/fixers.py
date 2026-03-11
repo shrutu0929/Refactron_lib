@@ -731,3 +731,44 @@ class RemovePrintStatementsFixer(BaseFixer):
     def _create_diff(self, original: str, fixed: str) -> str:
         """Create a simple diff."""
         return f"--- Original\n{original}\n\n+++ Fixed\n{fixed}"
+
+
+class AISuggestionFixer(BaseFixer):
+    """Generic fixer that applies AI-generated suggestions."""
+
+    def __init__(self) -> None:
+        super().__init__(name="ai_suggestion", risk_score=0.5)
+
+    def preview(self, issue: CodeIssue, code: str) -> FixResult:
+        """Preview the AI-generated suggestion."""
+        if not issue.suggestion:
+            return FixResult(
+                success=False,
+                reason="No AI suggestion available for this issue",
+                risk_score=self.risk_score,
+            )
+
+        return FixResult(
+            success=True,
+            reason=issue.metadata.get("ai_explanation", "Applied AI-generated refactoring"),
+            diff=self._create_diff(code, issue.suggestion),
+            original=code,
+            fixed=issue.suggestion,
+            risk_score=self.risk_score,
+        )
+
+    def apply(self, issue: CodeIssue, code: str) -> FixResult:
+        """Apply the AI-generated suggestion."""
+        return self.preview(issue, code)
+
+    def _create_diff(self, original: str, fixed: str) -> str:
+        """Create a simple diff."""
+        import difflib
+
+        diff = difflib.unified_diff(
+            original.splitlines(keepends=True),
+            fixed.splitlines(keepends=True),
+            fromfile="Original",
+            tofile="AI Fixed",
+        )
+        return "".join(diff)

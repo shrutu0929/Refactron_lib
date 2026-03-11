@@ -81,6 +81,24 @@ class CodeSmellAnalyzer(BaseAnalyzer):
                 issue.metadata["validation_confidence"] = confidence
 
                 if confidence >= 0.3:
+                    # If confidence is very high, trigger auto-fix suggestion
+                    if confidence > 0.8 and self.orchestrator:
+                        try:
+                            # Generate a suggestion using the full source code for context
+                            suggestion_obj = self.orchestrator.generate_suggestion(
+                                issue, source_code
+                            )
+                            if suggestion_obj.proposed_code:
+                                issue.suggestion = suggestion_obj.proposed_code
+                                issue.metadata["ai_fix_available"] = True
+                                issue.metadata["ai_explanation"] = suggestion_obj.explanation
+                                issue.metadata["ai_reasoning"] = suggestion_obj.reasoning
+                        except Exception:
+                            # Failing to generate a suggestion shouldn't break triage
+                            pass
+                    else:
+                        pass
+
                     final_issues.append(issue)
             issues = final_issues
 
