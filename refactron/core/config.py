@@ -130,6 +130,9 @@ class RefactronConfig:
     pattern_learning_enabled: bool = True  # Enable learning from feedback
     pattern_ranking_enabled: bool = True  # Enable ranking based on learned patterns
 
+    # AI Triage settings
+    enable_ai_triage: bool = False  # Use LLM to filter false positive code smells
+
     @classmethod
     def from_file(
         cls,
@@ -243,6 +246,7 @@ class RefactronConfig:
             ),
             "pattern_learning_enabled": self.pattern_learning_enabled,
             "pattern_ranking_enabled": self.pattern_ranking_enabled,
+            "enable_ai_triage": self.enable_ai_triage,
         }
 
         try:
