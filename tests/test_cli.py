@@ -28,7 +28,9 @@ def mock_auth(monkeypatch):
         api_key="ref_FAKE",
     )
     import sys
-    import refactron.cli.main
+
+    import refactron.cli.main  # noqa: F401
+
     monkeypatch.setattr(sys.modules["refactron.cli.main"], "load_credentials", lambda: fake_creds)
 
 

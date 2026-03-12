@@ -15,8 +15,10 @@ def test_login_device_code_flow(monkeypatch, tmp_path: Path) -> None:
 
     # Pretend there are no existing credentials so login flow runs
     import sys
-    import refactron.cli.main
+
     import refactron.cli.auth
+    import refactron.cli.main  # noqa: F401
+
     monkeypatch.setattr(sys.modules["refactron.cli.main"], "load_credentials", lambda: None)
     monkeypatch.setattr(sys.modules["refactron.cli.auth"], "load_credentials", lambda: None)
 
@@ -99,8 +101,10 @@ def test_logout_no_credentials(monkeypatch) -> None:
     runner = CliRunner()
 
     import sys
-    import refactron.cli.main
+
     import refactron.cli.auth
+    import refactron.cli.main  # noqa: F401
+
     monkeypatch.setattr(sys.modules["refactron.cli.main"], "load_credentials", lambda: None)
     monkeypatch.setattr(sys.modules["refactron.cli.auth"], "load_credentials", lambda: None)
     monkeypatch.setattr("refactron.cli.auth.delete_credentials", lambda path: False)
@@ -114,8 +118,10 @@ def test_auth_status_not_logged_in(monkeypatch) -> None:
     runner = CliRunner()
 
     import sys
-    import refactron.cli.main
+
     import refactron.cli.auth
+    import refactron.cli.main  # noqa: F401
+
     monkeypatch.setattr(sys.modules["refactron.cli.main"], "load_credentials", lambda: None)
     monkeypatch.setattr(sys.modules["refactron.cli.auth"], "load_credentials", lambda: None)
 
@@ -140,8 +146,10 @@ def test_login_skips_when_already_logged_in(monkeypatch, tmp_path: Path) -> None
 
     # load_credentials returns an existing valid credential
     import sys
-    import refactron.cli.main
+
     import refactron.cli.auth
+    import refactron.cli.main  # noqa: F401
+
     monkeypatch.setattr(sys.modules["refactron.cli.main"], "load_credentials", lambda: fake_creds)
     monkeypatch.setattr(sys.modules["refactron.cli.auth"], "load_credentials", lambda: fake_creds)
 
@@ -162,8 +170,10 @@ def test_login_does_not_save_invalid_api_key(monkeypatch, tmp_path: Path) -> Non
     runner = CliRunner()
 
     import sys
-    import refactron.cli.main
+
     import refactron.cli.auth
+    import refactron.cli.main  # noqa: F401
+
     monkeypatch.setattr(sys.modules["refactron.cli.main"], "load_credentials", lambda: None)
     monkeypatch.setattr(sys.modules["refactron.cli.auth"], "load_credentials", lambda: None)
 
