@@ -1,4 +1,3 @@
-# FIXED: Indentation and Syntax resolved
 """Code parser using tree-sitter for AST-aware code analysis."""
 
 from __future__ import annotations
@@ -58,8 +57,6 @@ class CodeParser:
             raise RuntimeError(
                 "tree-sitter is not available. Install with: "
                 "pip install tree-sitter tree-sitter-python"
-                "tree-sitter is not available. "
-                "Install with: pip install tree-sitter tree-sitter-python"
             )
 
         # Initialize Python language - handle different tree-sitter API versions
@@ -100,41 +97,6 @@ class CodeParser:
                     "Failed to initialize tree-sitter parser with language "
                     f"data of type {type(lang_data)}"
                 )
-                    PY_LANGUAGE = Language(lang, "python")
-                except TypeError:
-                    # Try using the path to the compiled library (for very old or CI bindings)
-                    try:
-                        import os
-                        import platform
-
-                        pkg_dir = os.path.dirname(tspython.__file__)
-
-                        # Find the correct shared library extension
-                        system = platform.system()
-                        if system == "Windows":
-                            ext = ".dll"
-                        elif system == "Darwin":
-                            ext = ".dylib"
-                        else:
-                            ext = ".so"
-
-                        # Look for common names of the compiled language file
-                        lib_path = None
-                        for fname in os.listdir(pkg_dir):
-                            if fname.endswith(ext):
-                                lib_path = os.path.join(pkg_dir, fname)
-                                break
-
-                        if lib_path:
-                            PY_LANGUAGE = Language(lib_path, "python")
-                        else:
-                            # Last resort: try as keyword or whatever lang is
-                            PY_LANGUAGE = Language(lang, name="python")
-                    except Exception:
-                        # Absolute last resort
-                        PY_LANGUAGE = Language(lang, name="python")
-
-        self.parser = Parser(PY_LANGUAGE)
 
     def parse_file(self, file_path: Path) -> ParsedFile:
         """Parse a Python file.
