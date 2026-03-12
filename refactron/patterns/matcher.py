@@ -80,9 +80,36 @@ class PatternMatcher:
         # If no exact match, look for fuzzy matches
         # For now, we'll use exact hash matching. Fuzzy matching can be added later
         # with more sophisticated algorithms (e.g., edit distance, structural similarity)
-
-        logger.debug(f"No exact pattern match found for hash: {code_hash[:8]}...")
         return []
+
+    def is_suppressed_by_ai(self, code_hash: str, operation_type: Optional[str] = None) -> bool:
+        """
+        Check if a code pattern has been suppressed by AI triage.
+
+        A pattern is suppressed if it has been marked as "suppressed_by_ai"
+        more times than it has been manually "overruled" (accepted_as_smell).
+
+        Args:
+            code_hash: Hash of the code pattern
+            operation_type: Optional operation type to filter by
+
+        Returns:
+            True if suppressed, False otherwise
+        """
+        matches = self.find_similar_patterns(code_hash, operation_type)
+        if not matches:
+            return False
+
+        # If any matching pattern is suppressed and not overruled, return True
+        for pattern in matches:
+            if (
+                hasattr(pattern, "suppressed_count")
+                and hasattr(pattern, "overruled_count")
+                and pattern.suppressed_count > pattern.overruled_count
+            ):
+                return True
+
+        return False
 
     def calculate_pattern_score(
         self,
@@ -145,7 +172,7 @@ class PatternMatcher:
             base_score *= benefit_factor
 
         # Normalize to 0.0-1.0 range
-        return min(1.0, max(0.0, base_score))
+        return float(min(1.0, max(0.0, base_score)))
 
     def find_best_matches(
         self,
@@ -229,6 +256,7 @@ class PatternMatcher:
                     self._hash_index[pattern.pattern_hash] = []
                 self._hash_index[pattern.pattern_hash].append(pattern)
 
+        assert self._hash_index is not None
         return self._hash_index
 
     def clear_cache(self) -> None:

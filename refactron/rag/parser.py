@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, cast
 
 try:
     import tree_sitter_python as tspython
@@ -13,6 +13,14 @@ try:
     TREE_SITTER_AVAILABLE = True
 except ImportError:
     TREE_SITTER_AVAILABLE = False
+    # Use different names for mypy to avoid redefinition errors
+    Language = Any  # type: ignore
+    Node = Any  # type: ignore
+    Parser = Any  # type: ignore
+    tspython = None  # type: ignore
+
+if TYPE_CHECKING:
+    from tree_sitter import Language, Node, Parser
 
 
 @dataclass
@@ -52,61 +60,101 @@ class CodeParser:
     """AST-aware code parser using tree-sitter."""
 
     def __init__(self) -> None:
-        """Initialize the parser."""
+        """Initialize the parser with cross-version tree-sitter compatibility."""
         if not TREE_SITTER_AVAILABLE:
             raise RuntimeError(
-                "tree-sitter is not available. "
-                "Install with: pip install tree-sitter tree-sitter-python"
+                "tree-sitter is not available. Install with: "
+                "pip install tree-sitter tree-sitter-python"
             )
 
-        # Initialize Python language - handle different tree-sitter API versions
-        lang = tspython.language()
+        self.parser, self.language = self._init_parser()
 
-        # In some versions, tspython.language() already returns a Language object
-        if isinstance(lang, Language):
-            PY_LANGUAGE = lang
-        else:
-            # Try newer API first (single argument)
-            try:
-                PY_LANGUAGE = Language(lang)
-            except TypeError:
-                # Try older API (needs name)
-                try:
-                    PY_LANGUAGE = Language(lang, "python")
-                except TypeError:
-                    # Try using the path to the compiled library (for very old or CI bindings)
-                    try:
-                        import os
-                        import platform
+    @staticmethod
+    def _try_parse(parser: "Parser") -> bool:
+        """Return True if this parser instance can actually parse Python code."""
+        try:
+            tree = parser.parse(b"x = 1\n")
+            return tree is not None and tree.root_node is not None
+        except Exception:
+            return False
 
-                        pkg_dir = os.path.dirname(tspython.__file__)
+    @staticmethod
+    def _init_parser() -> Tuple["Parser", "Language"]:
+        """Try every known tree-sitter API variant and return a working parser."""
+        # -------------------------------------------------------------------
+        # Strategy 1: tree_sitter_python >= 0.22 (returns a Language object
+        # or a capsule that Language() accepts with one arg).
+        # -------------------------------------------------------------------
+        try:
+            lang_data = tspython.language()
+            # Sub-strategy 1a: lang_data is already a Language
+            if isinstance(lang_data, Language):
+                py_language = lang_data
+            else:
+                py_language = Language(lang_data)
 
-                        # Find the correct shared library extension
-                        system = platform.system()
-                        if system == "Windows":
-                            ext = ".dll"
-                        elif system == "Darwin":
-                            ext = ".dylib"
-                        else:
-                            ext = ".so"
+            # In tree-sitter >= 0.22 the constructor accepts a language arg.
+            p = Parser(py_language)
+            if CodeParser._try_parse(p):
+                return p, py_language
 
-                        # Look for common names of the compiled language file
-                        lib_path = None
-                        for fname in os.listdir(pkg_dir):
-                            if fname.endswith(ext):
-                                lib_path = os.path.join(pkg_dir, fname)
-                                break
+            # In tree-sitter 0.21 the constructor exists but set_language()
+            # is still needed to actually apply it.
+            p = Parser()
+            p.set_language(py_language)  # type: ignore
+            if CodeParser._try_parse(p):
+                return p, py_language
+        except Exception:
+            pass
 
-                        if lib_path:
-                            PY_LANGUAGE = Language(lib_path, "python")
-                        else:
-                            # Last resort: try as keyword or whatever lang is
-                            PY_LANGUAGE = Language(lang, name="python")
-                    except Exception:
-                        # Absolute last resort
-                        PY_LANGUAGE = Language(lang, name="python")
+        # -------------------------------------------------------------------
+        # Strategy 2: tree_sitter_python 0.20.x – language() returns a
+        # PyCapsule; Language must be constructed with (capsule, "python").
+        # -------------------------------------------------------------------
+        try:
+            lang_data = tspython.language()  # type: ignore
+            py_language = Language(lang_data, "python")  # type: ignore
+            p = Parser()
+            p.set_language(py_language)  # type: ignore
+            if CodeParser._try_parse(p):
+                return p, py_language
+        except Exception:
+            pass
 
-        self.parser = Parser(PY_LANGUAGE)
+        # -------------------------------------------------------------------
+        # Strategy 3: Very old tree-sitter 0.20.x where the shared library
+        # path is needed.  tree_sitter_python exposes the .so via __file__.
+        # -------------------------------------------------------------------
+        try:
+            import tree_sitter_python as _tsp
+
+            lib_path = getattr(_tsp, "language_python", None) or getattr(_tsp, "__file__", None)
+            if lib_path:
+                py_language = Language(lib_path, "python")  # type: ignore
+                p = Parser()
+                p.set_language(py_language)  # type: ignore
+                if CodeParser._try_parse(p):
+                    return p, py_language
+        except Exception:
+            pass
+
+        # -------------------------------------------------------------------
+        # Strategy 4: language() returns a raw capsule that can be passed
+        # directly to set_language() without wrapping in Language().
+        # -------------------------------------------------------------------
+        try:
+            lang_data = tspython.language()  # type: ignore
+            p = Parser()
+            p.set_language(lang_data)  # type: ignore
+            if CodeParser._try_parse(p):
+                return p, cast(Language, lang_data)
+        except Exception:
+            pass
+
+        raise RuntimeError(
+            "Could not initialize tree-sitter parser for Python. "
+            "Please check your tree-sitter and tree-sitter-python installation."
+        )
 
     def parse_file(self, file_path: Path) -> ParsedFile:
         """Parse a Python file.
@@ -161,6 +209,7 @@ class CodeParser:
         imports = []
         for node in root.children:
             if node.type in ("import_statement", "import_from_statement"):
+                # type: ignore
                 import_text = source[node.start_byte : node.end_byte].decode("utf-8")
                 imports.append(import_text)
         return imports
@@ -169,7 +218,7 @@ class CodeParser:
         """Extract function definitions."""
         functions = []
         for node in root.children:
-            if node.type == "function_definition":
+            if node.type in ("function_definition", "async_function_definition"):
                 func = self._parse_function(node, source)
                 if func:
                     functions.append(func)
@@ -237,7 +286,7 @@ class CodeParser:
         body_node = node.child_by_field_name("body")
         if body_node:
             for child in body_node.children:
-                if child.type == "function_definition":
+                if child.type in ("function_definition", "async_function_definition"):
                     method = self._parse_function(child, source)
                     if method:
                         methods.append(method)
@@ -291,9 +340,37 @@ class CodeParser:
         if not params_node:
             return params
 
-        for child in params_node.children:
-            if child.type == "identifier":
-                param_name = source[child.start_byte : child.end_byte].decode("utf-8")
-                params.append(param_name)
+        def get_param_name(n: Any) -> Optional[str]:
+            # If it's an identifier, we found it
+            if n.type == "identifier":
+                return source[n.start_byte : n.end_byte].decode("utf-8")  # type: ignore
+
+            # Check 'name' field first (standard for typed_parameter, default_parameter)
+            name_node = n.child_by_field_name("name")
+            if name_node:
+                return get_param_name(name_node)
+
+            # For splats (*args, **kwargs), the identifier is a child
+            if n.type in ("list_splat_pattern", "dictionary_splat_pattern"):
+                for child in n.named_children:
+                    if child.type == "identifier":
+                        # type: ignore
+                        return source[child.start_byte : child.end_byte].decode("utf-8")
+
+            # Fallback: first identifier child
+            for child in n.named_children:
+                if child.type == "identifier":
+                    # type: ignore
+                    return source[child.start_byte : child.end_byte].decode("utf-8")
+            return None
+
+        for child in params_node.named_children:
+            # Skip punctuation/non-parameter nodes
+            if child.type in ("(", ")", ","):
+                continue
+
+            name = get_param_name(child)
+            if name:
+                params.append(name)
 
         return params

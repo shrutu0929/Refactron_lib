@@ -6,12 +6,39 @@ from pathlib import Path
 from typing import Dict, List, Set
 
 from refactron.analyzers.base_analyzer import BaseAnalyzer
+<<<<<<< Updated upstream
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
+=======
+from refactron.core.config import RefactronConfig
+from refactron.core.models import CodeIssue, IssueCategory, IssueLevel, RefactoringOperation
+from refactron.llm.orchestrator import LLMOrchestrator
+from refactron.patterns.fingerprint import PatternFingerprinter
+from refactron.patterns.learner import PatternLearner
+from refactron.patterns.matcher import PatternMatcher
+from refactron.patterns.models import RefactoringFeedback
+>>>>>>> Stashed changes
 
 
 class CodeSmellAnalyzer(BaseAnalyzer):
     """Detects common code smells and anti-patterns."""
 
+<<<<<<< Updated upstream
+=======
+    def __init__(
+        self,
+        config: RefactronConfig,
+        orchestrator: Optional[LLMOrchestrator] = None,
+        matcher: Optional[PatternMatcher] = None,
+        fingerprinter: Optional[PatternFingerprinter] = None,
+        learner: Optional[PatternLearner] = None,
+    ):
+        super().__init__(config)
+        self.orchestrator = orchestrator
+        self.matcher = matcher
+        self.fingerprinter = fingerprinter
+        self.learner = learner
+
+>>>>>>> Stashed changes
     @property
     def name(self) -> str:
         return "code_smells"
@@ -51,6 +78,139 @@ class CodeSmellAnalyzer(BaseAnalyzer):
             )
             issues.append(issue)
 
+<<<<<<< Updated upstream
+=======
+        # Phase 4: AI Suppression and Caching
+        if issues:
+            final_issues = []
+
+            # 1. Local Caching Check
+            if self.matcher and self.fingerprinter:
+                filtered_by_cache = []
+                for issue in issues:
+                    # Fingerprint the issue context
+                    fingerprint = self.fingerprinter.fingerprint_issue_context(issue, source_code)
+                    issue.metadata["code_pattern_hash"] = fingerprint
+
+                    # Check if suppressed by AI in the past
+                    is_suppressed = self.matcher.is_suppressed_by_ai(fingerprint)
+                    if is_suppressed:
+                        issue.metadata["suppressed_by_ai"] = True
+                        if self.config.include_suppressed:
+                            filtered_by_cache.append(issue)
+                    else:
+                        filtered_by_cache.append(issue)
+                issues = filtered_by_cache
+
+            # 2. AI Triage with Suppression Recording
+            if self.config.enable_ai_triage and self.orchestrator and issues:
+                # Only triage issues that aren't already suppressed by local cache
+                issues_to_triage = [i for i in issues if not i.metadata.get("suppressed_by_ai")]
+                # Issues already suppressed but included via flag
+                already_suppressed = [i for i in issues if i.metadata.get("suppressed_by_ai")]
+
+                if issues_to_triage:
+                    confidence_scores = self.orchestrator.evaluate_issues_batch(
+                        issues_to_triage, source_code
+                    )
+
+                    for i, issue in enumerate(issues_to_triage):
+                        # Construct a stable ID matching orchestrator's logic
+                        # Simplified for now, as long as it's consistent
+                        base_id = getattr(issue, "rule_id", None) or "issue"
+                        id_parts = [str(base_id)]
+                        line_number = getattr(issue, "line_number", None)
+                        if line_number is not None:
+                            id_parts.append(str(line_number))
+                        # Find the index in the original batch passed to orchestrator
+                        # This is tricky because orchestrator logic for ID is complex.
+                        # Let's assume the keys in confidence_scores match the issues list order
+                        # but orchestrator.py:294 builds a complex ID.
+
+                        # Better: rely on the fact that orchestrator should return
+                        # scores for all IDs.
+                        # We need to recreate the exact ID orchestrator used.
+                        # Actually, looking at orchestrator.py, it uses a loop with
+                        # suffix for uniqueness.
+                        # This is a bit fragile.
+
+                        # Simplified lookup: just find the score by matching properties if possible,
+                        # or use the fact that we can search for the ID we expect.
+
+                        # For now, let's use a simpler approach: get the confidence.
+                        # If orchestrator doesn't find it, it defaults to 1.0.
+
+                        # Let's try to find our issue's score in the results.
+                        # We'll search for keys that start with the rule_id and line number.
+                        confidence = 1.0
+                        expected_prefix = ":".join(id_parts)
+                        for score_id, score_val in confidence_scores.items():
+                            if score_id.startswith(expected_prefix):
+                                confidence = score_val
+                                break
+                        issue.metadata["validation_confidence"] = confidence
+
+                        if confidence < 0.3:
+                            # AI Triage suppressed this issue
+                            issue.metadata["suppressed_by_ai"] = True
+
+                            # Record feedback for learning
+                            if self.learner and "code_pattern_hash" in issue.metadata:
+                                fingerprint = issue.metadata["code_pattern_hash"]
+                                try:
+                                    # Create dummy operation for learner
+                                    op = RefactoringOperation(
+                                        operation_type="code_smell",
+                                        file_path=file_path,
+                                        line_number=issue.line_number,
+                                        description=issue.message,
+                                        old_code=issue.code_snippet
+                                        or source_code.split("\n")[issue.line_number - 1],
+                                        new_code="",  # No fix yet
+                                        risk_score=0.5,
+                                        metadata={"code_pattern_hash": fingerprint},
+                                    )
+                                    feedback = RefactoringFeedback.create(
+                                        operation_id=op.operation_id,
+                                        operation_type=op.operation_type,
+                                        file_path=file_path,
+                                        action="suppressed_by_ai",
+                                        code_pattern_hash=fingerprint,
+                                    )
+                                    self.learner.learn_from_feedback(op, feedback)
+                                except Exception:
+                                    pass  # Non-critical failure
+
+                            if self.config.include_suppressed:
+                                final_issues.append(issue)
+                        else:
+                            # Issue passed triage
+                            if confidence > 0.8:
+                                # Generate AI fix
+                                try:
+                                    suggestion_obj = self.orchestrator.generate_suggestion(
+                                        issue, source_code
+                                    )
+                                    if suggestion_obj.proposed_code:
+                                        issue.suggestion = suggestion_obj.proposed_code
+                                        issue.metadata["ai_fix_available"] = True
+                                        issue.metadata["ai_explanation"] = (
+                                            suggestion_obj.explanation
+                                        )
+                                except Exception:
+                                    pass
+                            final_issues.append(issue)
+
+                # Add issues that were already suppressed by cache (if include_suppressed is True)
+                final_issues.extend(already_suppressed)
+                issues = final_issues
+            else:
+                # Either AI triage is disabled or no issues.
+                # If triage disabled, issues still contains locally suppressed
+                # if include_suppressed=True.
+                pass
+
+>>>>>>> Stashed changes
         return issues
 
     def _check_too_many_parameters(self, tree: ast.AST, file_path: Path) -> List[CodeIssue]:

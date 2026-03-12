@@ -156,6 +156,8 @@ class RefactoringPattern:
     average_benefit_score: float = 0.0
     first_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_seen: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    suppressed_count: int = 0
+    overruled_count: int = 0
     project_context: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -170,6 +172,15 @@ class RefactoringPattern:
             self.rejected_count += 1
         elif action == "ignored":
             self.ignored_count += 1
+        elif action == "suppressed_by_ai":
+            self.suppressed_count += 1
+        elif action == "accepted_as_smell":
+            self.overruled_count += 1
+            # When manually overruled, we should potentially reset or decrease suppression count
+            # or simply rely on overruled_count > suppressed_count in the matcher.
+            # To be safe and ensure it re-appears, we can ensure overruled is at least > suppressed.
+            if self.overruled_count <= self.suppressed_count:
+                self.overruled_count = self.suppressed_count + 1
 
         # Recalculate acceptance rate
         if self.total_occurrences > 0:

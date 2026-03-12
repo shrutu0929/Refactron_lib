@@ -147,10 +147,11 @@ class Refactron:
                         fingerprinter=self.pattern_fingerprinter,
                     )
 
-                # Matcher is only needed when ranking is enabled
+                # Matcher is always needed (for Phase 4 AI suppression caching)
+                self.pattern_matcher = PatternMatcher(storage=self.pattern_storage)
+
+                # Initialize ranker only if ranking is enabled
                 if self.config.pattern_ranking_enabled:
-                    self.pattern_matcher = PatternMatcher(storage=self.pattern_storage)
-                    # Initialize ranker only if ranking is enabled
                     self.pattern_ranker = RefactoringRanker(
                         storage=self.pattern_storage,
                         matcher=self.pattern_matcher,
@@ -172,6 +173,17 @@ class Refactron:
         else:
             logger.debug("Pattern learning is disabled in configuration")
 
+        # Initialize AI triage components (if enabled)
+        self.orchestrator = None
+        if self.config.enable_ai_triage:
+            try:
+                from refactron.llm.orchestrator import LLMOrchestrator
+
+                self.orchestrator = LLMOrchestrator()
+                logger.debug("AI triage orchestrator initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize AI triage: {e}")
+
         self._initialize_analyzers()
         self._initialize_refactorers()
 
@@ -181,7 +193,21 @@ class Refactron:
             self.analyzers.append(ComplexityAnalyzer(self.config))
 
         if "code_smells" in self.config.enabled_analyzers:
+<<<<<<< Updated upstream
             self.analyzers.append(CodeSmellAnalyzer(self.config))
+=======
+            from refactron.analyzers.code_smell_analyzer import CodeSmellAnalyzer
+
+            self.analyzers.append(
+                CodeSmellAnalyzer(
+                    self.config,
+                    orchestrator=self.orchestrator,
+                    matcher=self.pattern_matcher,
+                    fingerprinter=self.pattern_fingerprinter,
+                    learner=self.pattern_learner,
+                )
+            )
+>>>>>>> Stashed changes
 
         if "security" in self.config.enabled_analyzers:
             self.analyzers.append(SecurityAnalyzer(self.config))
@@ -689,7 +715,8 @@ class Refactron:
         if (
             not self.config.enable_pattern_learning
             or not self.pattern_storage
-            or action not in ("accepted", "rejected", "ignored")
+            or action
+            not in ("accepted", "rejected", "ignored", "suppressed_by_ai", "accepted_as_smell")
         ):
             return
 

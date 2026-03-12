@@ -130,6 +130,13 @@ class RefactronConfig:
     pattern_learning_enabled: bool = True  # Enable learning from feedback
     pattern_ranking_enabled: bool = True  # Enable ranking based on learned patterns
 
+<<<<<<< Updated upstream
+=======
+    # AI Triage settings
+    enable_ai_triage: bool = False  # Enable LLM-based false positive filtering
+    include_suppressed: bool = False  # Include issues suppressed by AI in reports
+
+>>>>>>> Stashed changes
     @classmethod
     def from_file(
         cls,
@@ -243,6 +250,11 @@ class RefactronConfig:
             ),
             "pattern_learning_enabled": self.pattern_learning_enabled,
             "pattern_ranking_enabled": self.pattern_ranking_enabled,
+<<<<<<< Updated upstream
+=======
+            "enable_ai_triage": self.enable_ai_triage,
+            "include_suppressed": self.include_suppressed,
+>>>>>>> Stashed changes
         }
 
         try:
