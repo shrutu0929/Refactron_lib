@@ -52,51 +52,103 @@ class CodeParser:
     """AST-aware code parser using tree-sitter."""
 
     def __init__(self) -> None:
-        """Initialize the parser."""
+        """Initialize the parser with cross-version tree-sitter compatibility."""
         if not TREE_SITTER_AVAILABLE:
             raise RuntimeError(
                 "tree-sitter is not available. Install with: "
                 "pip install tree-sitter tree-sitter-python"
             )
 
-        # Initialize Python language - handle different tree-sitter API versions
-        lang_data = tspython.language()
+        self.parser, self.language = self._init_parser()
 
-        # Try to get a proper Language object
-        py_language = None
-        if isinstance(lang_data, Language):
-            py_language = lang_data
-        else:
-            # Try newer API first (single argument)
-            try:
-                py_language = Language(lang_data)
-            except (TypeError, ValueError):
-                # Try older API (needs name)
-                try:
-                    py_language = Language(lang_data, "python")
-                except (TypeError, ValueError):
-                    try:
-                        py_language = Language(lang_data, name="python")
-                    except (TypeError, ValueError):
-                        # Fallback to using the raw data if it can be used directly
-                        py_language = lang_data
-
-        # Initialize Parser - handle different tree-sitter API versions
-        # Always call set_language() to ensure the language is actually set,
-        # as Parser(py_language) constructor may silently succeed without setting it
-        # on some tree-sitter versions (causing "Parsing failed" ValueError later).
-        self.parser = Parser()
+    @staticmethod
+    def _try_parse(parser: "Parser") -> bool:
+        """Return True if this parser instance can actually parse Python code."""
         try:
-            self.parser.set_language(py_language)
+            tree = parser.parse(b"x = 1\n")
+            return tree is not None and tree.root_node is not None
         except Exception:
-            # Newer tree-sitter (>=0.22) removed set_language; use constructor instead
-            try:
-                self.parser = Parser(py_language)
-            except Exception:
-                raise RuntimeError(
-                    "Failed to initialize tree-sitter parser with language "
-                    f"data of type {type(lang_data)}"
-                )
+            return False
+
+    @staticmethod
+    def _init_parser() -> Tuple["Parser", "Language"]:
+        """Try every known tree-sitter API variant and return a working parser."""
+        # -------------------------------------------------------------------
+        # Strategy 1: tree_sitter_python >= 0.22 (returns a Language object
+        # or a capsule that Language() accepts with one arg).
+        # -------------------------------------------------------------------
+        try:
+            lang_data = tspython.language()
+            # Sub-strategy 1a: lang_data is already a Language
+            if isinstance(lang_data, Language):
+                py_language = lang_data
+            else:
+                py_language = Language(lang_data)
+
+            # In tree-sitter >= 0.22 the constructor accepts a language arg.
+            p = Parser(py_language)
+            if CodeParser._try_parse(p):
+                return p, py_language
+
+            # In tree-sitter 0.21 the constructor exists but set_language()
+            # is still needed to actually apply it.
+            p = Parser()
+            p.set_language(py_language)
+            if CodeParser._try_parse(p):
+                return p, py_language
+        except Exception:
+            pass
+
+        # -------------------------------------------------------------------
+        # Strategy 2: tree_sitter_python 0.20.x – language() returns a
+        # PyCapsule; Language must be constructed with (capsule, "python").
+        # -------------------------------------------------------------------
+        try:
+            lang_data = tspython.language()
+            py_language = Language(lang_data, "python")
+            p = Parser()
+            p.set_language(py_language)
+            if CodeParser._try_parse(p):
+                return p, py_language
+        except Exception:
+            pass
+
+        # -------------------------------------------------------------------
+        # Strategy 3: Very old tree-sitter 0.20.x where the shared library
+        # path is needed.  tree_sitter_python exposes the .so via __file__.
+        # -------------------------------------------------------------------
+        try:
+            import tree_sitter_python as _tsp
+
+            lib_path = getattr(_tsp, "language_python", None) or getattr(
+                _tsp, "__file__", None
+            )
+            if lib_path:
+                py_language = Language(lib_path, "python")
+                p = Parser()
+                p.set_language(py_language)
+                if CodeParser._try_parse(p):
+                    return p, py_language
+        except Exception:
+            pass
+
+        # -------------------------------------------------------------------
+        # Strategy 4: language() returns a raw capsule that can be passed
+        # directly to set_language() without wrapping in Language().
+        # -------------------------------------------------------------------
+        try:
+            lang_data = tspython.language()
+            p = Parser()
+            p.set_language(lang_data)
+            if CodeParser._try_parse(p):
+                return p, lang_data
+        except Exception:
+            pass
+
+        raise RuntimeError(
+            "Could not initialize tree-sitter parser for Python. "
+            "Please check your tree-sitter and tree-sitter-python installation."
+        )
 
     def parse_file(self, file_path: Path) -> ParsedFile:
         """Parse a Python file.
