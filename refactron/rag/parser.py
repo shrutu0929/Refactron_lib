@@ -82,17 +82,17 @@ class CodeParser:
                         py_language = lang_data
 
         # Initialize Parser - handle different tree-sitter API versions
+        # Always call set_language() to ensure the language is actually set,
+        # as Parser(py_language) constructor may silently succeed without setting it
+        # on some tree-sitter versions (causing "Parsing failed" ValueError later).
+        self.parser = Parser()
         try:
-            self.parser = Parser(py_language)
+            self.parser.set_language(py_language)
         except Exception:
-            # Older API might not take it in constructor
-            self.parser = Parser()
+            # Newer tree-sitter (>=0.22) removed set_language; use constructor instead
             try:
-                self.parser.set_language(py_language)
+                self.parser = Parser(py_language)
             except Exception:
-                # If everything fails, it might be due to a mismatch between
-                # tree-sitter-python and tree-sitter versions.
-                # There's not much more we can do here but raise with context.
                 raise RuntimeError(
                     "Failed to initialize tree-sitter parser with language "
                     f"data of type {type(lang_data)}"
