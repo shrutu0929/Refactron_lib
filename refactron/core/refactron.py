@@ -1,4 +1,6 @@
 """Main Refactron class - the entry point for all operations."""
+ 
+from __future__ import annotations
 
 import logging
 import os

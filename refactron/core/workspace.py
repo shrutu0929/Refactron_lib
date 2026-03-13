@@ -10,7 +10,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 
@@ -147,7 +147,7 @@ class WorkspaceManager:
 
         return None
 
-    def list_workspaces(self) -> list[WorkspaceMapping]:
+    def list_workspaces(self) -> List[WorkspaceMapping]:
         """List all workspace mappings.
 
         Returns:
