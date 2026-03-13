@@ -81,13 +81,14 @@ class CodeParser:
     @staticmethod
     def _init_parser() -> Tuple["Parser", "Language"]:
         """
-        Initialize the tree-sitter parser with a strategy that supports multiple 
+        Initialize the tree-sitter parser with a strategy that supports multiple
         versions and platforms, with special guards for Windows DLL stability.
         """
         if not tspython or not TREE_SITTER_AVAILABLE:
             raise RuntimeError("tree-sitter or tree-sitter-python is not installed.")
 
         import platform
+
         is_windows = platform.system() == "Windows"
 
         # 1. Get the language data capsule/object
@@ -105,7 +106,9 @@ class CodeParser:
         if not lang_data:
             # ONLY attempt legacy file loading if NOT on Windows OR if it's the only option.
             # On Windows, this is more likely to cause DLL crashes than a simple RuntimeError.
-            lib_path = getattr(tspython, "language_python", None) or getattr(tspython, "__file__", None)
+            lib_path = getattr(tspython, "language_python", None) or getattr(
+                tspython, "__file__", None
+            )
             if isinstance(lib_path, str) and not lib_path.endswith("__init__.py"):
                 if not is_windows:
                     lang_data = lib_path
@@ -132,7 +135,7 @@ class CodeParser:
             p = Parser(lang_obj)
             if CodeParser._try_parse(p):
                 return p, lang_obj
-            
+
             # Some versions might require set_language
             p = Parser()
             p.set_language(lang_obj)  # type: ignore
