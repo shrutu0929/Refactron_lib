@@ -506,6 +506,7 @@ class TestPatternLearningConfigIntegration:
         config = RefactronConfig(
             enable_pattern_learning=True,
             pattern_ranking_enabled=False,
+            enable_ai_triage=False,
             pattern_storage_dir=temp_storage_dir,
         )
         refactron = Refactron(config)

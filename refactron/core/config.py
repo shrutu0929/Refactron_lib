@@ -249,7 +249,6 @@ class RefactronConfig:
             "pattern_ranking_enabled": self.pattern_ranking_enabled,
             "enable_ai_triage": self.enable_ai_triage,
             "include_suppressed": self.include_suppressed,
-
         }
 
         try:

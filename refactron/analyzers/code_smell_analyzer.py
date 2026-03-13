@@ -31,6 +31,7 @@ class CodeSmellAnalyzer(BaseAnalyzer):
         self.matcher = matcher
         self.fingerprinter = fingerprinter
         self.learner = learner
+
     @property
     def name(self) -> str:
         return "code_smells"

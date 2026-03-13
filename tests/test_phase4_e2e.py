@@ -27,6 +27,7 @@ from refactron.patterns.storage import PatternStorage
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def storage(tmp_path):
     """Create a fresh PatternStorage backed by a temp directory."""
@@ -52,7 +53,9 @@ def matcher(storage):
 def sample_issue(tmp_path):
     """A simple CodeIssue representing a code smell."""
     code_file = tmp_path / "smelly.py"
-    code_file.write_text('def too_many_params(a, b, c, d, e, f, g):\n    """Sample docstring."""\n    return a\n')
+    code_file.write_text(
+        'def too_many_params(a, b, c, d, e, f, g):\n    """Sample docstring."""\n    return a\n'
+    )
     return CodeIssue(
         category=IssueCategory.CODE_SMELL,
         level=IssueLevel.WARNING,
@@ -71,6 +74,7 @@ def source_code():
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
+
 
 def _make_operation_and_feedback(issue, fingerprint, action, source_code):
     """Create a RefactoringOperation + RefactoringFeedback pair for the learner."""
@@ -97,6 +101,7 @@ def _make_operation_and_feedback(issue, fingerprint, action, source_code):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestPatternLearnerStoresSuppression:
     """AC1: PatternLearner must accept and store 'suppressed_by_ai' feedback."""
@@ -143,7 +148,9 @@ class TestPatternLearnerStoresSuppression:
 class TestPatternMatcherDropsSuppressedIssues:
     """AC2: PatternMatcher must return True for suppressed fingerprints."""
 
-    def test_not_suppressed_when_no_patterns(self, matcher, fingerprinter, sample_issue, source_code):
+    def test_not_suppressed_when_no_patterns(
+        self, matcher, fingerprinter, sample_issue, source_code
+    ):
         fingerprint = fingerprinter.fingerprint_issue_context(sample_issue, source_code)
         assert matcher.is_suppressed_by_ai(fingerprint) is False
 
@@ -205,7 +212,9 @@ class TestManualOverridePermanentlyBypassesSuppression:
         learner.learn_from_feedback(op1, fb1)
         storage._patterns_cache = None
         matcher.clear_cache()
-        assert matcher.is_suppressed_by_ai(fingerprint) is True, "Should be suppressed after AI decision"
+        assert (
+            matcher.is_suppressed_by_ai(fingerprint) is True
+        ), "Should be suppressed after AI decision"
 
         # --- Step 2: User manually overrides ---
         op2, fb2 = _make_operation_and_feedback(
@@ -216,18 +225,18 @@ class TestManualOverridePermanentlyBypassesSuppression:
         matcher.clear_cache()
 
         # Override must permanently remove the suppression
-        assert matcher.is_suppressed_by_ai(fingerprint) is False, (
-            "After accepted_as_smell override, issue should no longer be suppressed"
-        )
+        assert (
+            matcher.is_suppressed_by_ai(fingerprint) is False
+        ), "After accepted_as_smell override, issue should no longer be suppressed"
 
         # --- Step 3: Verify pattern counters are correct ---
         patterns = storage.load_patterns()
         assert len(patterns) == 1
         pattern = list(patterns.values())[0]
         assert pattern.suppressed_count >= 1, "suppressed_count must have been recorded"
-        assert pattern.overruled_count > pattern.suppressed_count, (
-            "overruled_count must exceed suppressed_count to permanently unblock"
-        )
+        assert (
+            pattern.overruled_count > pattern.suppressed_count
+        ), "overruled_count must exceed suppressed_count to permanently unblock"
 
     def test_override_is_permanent_across_multiple_suppression_attempts(
         self, learner, matcher, fingerprinter, sample_issue, source_code, storage
@@ -254,9 +263,9 @@ class TestManualOverridePermanentlyBypassesSuppression:
         storage._patterns_cache = None
         matcher.clear_cache()
 
-        assert matcher.is_suppressed_by_ai(fingerprint) is False, (
-            "Manual override must permanently unblock even after multiple suppressions"
-        )
+        assert (
+            matcher.is_suppressed_by_ai(fingerprint) is False
+        ), "Manual override must permanently unblock even after multiple suppressions"
 
 
 class TestCodeSmellAnalyzerIntegration:
@@ -310,9 +319,7 @@ class TestCodeSmellAnalyzerIntegration:
 
         # Mock orchestrator returns low confidence → AI suppresses
         mock_orch = MagicMock()
-        mock_orch.evaluate_issues_batch.return_value = {
-            "S001:1": 0.1  # low confidence
-        }
+        mock_orch.evaluate_issues_batch.return_value = {"S001:1": 0.1}  # low confidence
 
         config = RefactronConfig()
         config.enable_ai_triage = True
@@ -367,6 +374,6 @@ class TestCodeSmellAnalyzerIntegration:
         issues = analyzer.analyze(sample_issue.file_path, source_code)
 
         suppressed_issues = [i for i in issues if i.metadata.get("suppressed_by_ai") is True]
-        assert len(suppressed_issues) >= 1, (
-            "--include-suppressed should surface issues that were cached as suppressed"
-        )
+        assert (
+            len(suppressed_issues) >= 1
+        ), "--include-suppressed should surface issues that were cached as suppressed"

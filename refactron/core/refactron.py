@@ -147,8 +147,9 @@ class Refactron:
                         fingerprinter=self.pattern_fingerprinter,
                     )
 
-                # Matcher is always needed (for Phase 4 AI suppression caching)
-                self.pattern_matcher = PatternMatcher(storage=self.pattern_storage)
+                # Matcher is needed for ranking or AI suppression caching (Phase 4)
+                if self.config.pattern_ranking_enabled or self.config.enable_ai_triage:
+                    self.pattern_matcher = PatternMatcher(storage=self.pattern_storage)
 
                 # Initialize ranker only if ranking is enabled
                 if self.config.pattern_ranking_enabled:
@@ -204,7 +205,6 @@ class Refactron:
                     learner=self.pattern_learner,
                 )
             )
-
 
         if "security" in self.config.enabled_analyzers:
             self.analyzers.append(SecurityAnalyzer(self.config))
