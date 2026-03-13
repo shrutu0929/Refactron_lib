@@ -3,12 +3,9 @@
 import ast
 import copy
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from refactron.analyzers.base_analyzer import BaseAnalyzer
-<<<<<<< Updated upstream
-from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
-=======
 from refactron.core.config import RefactronConfig
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel, RefactoringOperation
 from refactron.llm.orchestrator import LLMOrchestrator
@@ -16,14 +13,11 @@ from refactron.patterns.fingerprint import PatternFingerprinter
 from refactron.patterns.learner import PatternLearner
 from refactron.patterns.matcher import PatternMatcher
 from refactron.patterns.models import RefactoringFeedback
->>>>>>> Stashed changes
 
 
 class CodeSmellAnalyzer(BaseAnalyzer):
     """Detects common code smells and anti-patterns."""
 
-<<<<<<< Updated upstream
-=======
     def __init__(
         self,
         config: RefactronConfig,
@@ -37,8 +31,6 @@ class CodeSmellAnalyzer(BaseAnalyzer):
         self.matcher = matcher
         self.fingerprinter = fingerprinter
         self.learner = learner
-
->>>>>>> Stashed changes
     @property
     def name(self) -> str:
         return "code_smells"
@@ -78,8 +70,6 @@ class CodeSmellAnalyzer(BaseAnalyzer):
             )
             issues.append(issue)
 
-<<<<<<< Updated upstream
-=======
         # Phase 4: AI Suppression and Caching
         if issues:
             final_issues = []
@@ -210,7 +200,6 @@ class CodeSmellAnalyzer(BaseAnalyzer):
                 # if include_suppressed=True.
                 pass
 
->>>>>>> Stashed changes
         return issues
 
     def _check_too_many_parameters(self, tree: ast.AST, file_path: Path) -> List[CodeIssue]:

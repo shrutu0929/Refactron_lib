@@ -193,9 +193,6 @@ class Refactron:
             self.analyzers.append(ComplexityAnalyzer(self.config))
 
         if "code_smells" in self.config.enabled_analyzers:
-<<<<<<< Updated upstream
-            self.analyzers.append(CodeSmellAnalyzer(self.config))
-=======
             from refactron.analyzers.code_smell_analyzer import CodeSmellAnalyzer
 
             self.analyzers.append(
@@ -207,7 +204,7 @@ class Refactron:
                     learner=self.pattern_learner,
                 )
             )
->>>>>>> Stashed changes
+
 
         if "security" in self.config.enabled_analyzers:
             self.analyzers.append(SecurityAnalyzer(self.config))
