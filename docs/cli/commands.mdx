@@ -215,6 +215,34 @@ Get AI-powered improvement suggestions for specific code blocks.
 
 ```bash
 refactron suggest <path> --line <n> [options]
+refactron repo <command> [options]
+```
+
+**Commands:**
+- `list` - List connected repositories
+- `connect` - Connect a repository (auto-detects local git repo, or clones from GitHub)
+- `disconnect` - Disconnect a repository
+
+**Options:**
+- `--ssh` - Clone using SSH instead of HTTPS (for connect API fallback)
+- `--delete-files` - Delete local files (for disconnect)
+
+**Examples:**
+```bash
+# List repos
+refactron repo list
+
+# Connect current local git repository (offline)
+refactron repo connect
+
+# Clone and connect remote repository
+refactron repo connect my-repo
+
+# Clone via SSH instead of HTTPS
+refactron repo connect --ssh my-repo
+
+# Disconnect repo
+refactron repo disconnect my-repo
 ```
 
 ---
