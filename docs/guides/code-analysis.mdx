@@ -285,6 +285,38 @@ refactron analyze src/module1/
 refactron analyze src/module2/
 ```
 
+## Real-World Recipes
+
+### Recipe: Scanning for SQL Injection in CI
+
+A common requirement is to block pull requests that introduce critical security issues like SQL Injection. You can run Refactron in a strict mode during your CI pipeline:
+
+```yaml .github/workflows/security-scan.yml
+name: Security Scan
+on: [push, pull_request]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Refactron
+        run: pip install refactron
+      - name: Run Security Analysis
+        run: |
+          # Use focused config for CI
+          refactron analyze . \
+            --config .refactron-ci.yaml \
+            --format json -o security-report.json
+      - name: Fail on Critical Issues
+        run: |
+          # Exit with error if any critical SQLi found
+          if grep -q '"level": "CRITICAL"' security-report.json; then
+            echo "Security check failed!"
+            exit 1
+          fi
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>

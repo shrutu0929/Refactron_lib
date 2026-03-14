@@ -317,6 +317,37 @@ refactron feedback <operation-id> --action accepted
   </Accordion>
 </AccordionGroup>
 
+## Real-World Recipes
+
+### Recipe: Applying Batch Refactoring
+
+When performing large-scale migrations, such as updating a legacy codebase or standardizing docstrings across hundreds of files, you can use Refactron's batch processing for automated refactoring:
+
+```python
+from refactron import Refactron
+import glob
+
+refactron = Refactron()
+
+# Get all target files
+python_files = glob.glob("legacy_app/**/*.py", recursive=True)
+
+# Apply specific refactoring type in a batch
+results = []
+for file_path in python_files:
+    # Adding docstrings to all functions
+    result = refactron.refactor(
+        file_path, 
+        preview=False, 
+        operation_types=["add_docstring", "extract_constant"],
+        risk_level="safe" # Ensure only completely safe changes apply
+    )
+    if result.success:
+        results.append(result)
+
+print(f"Successfully processed {len(results)} files automatically.")
+```
+
 ## Next Steps
 
 <CardGroup cols={2}>

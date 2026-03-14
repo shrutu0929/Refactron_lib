@@ -260,6 +260,71 @@ print(f"AST cache hits: {stats['ast_cache']['hits']}")
 refactron.clear_caches()
 ```
 
+## Core Modules API
+
+Refactron provides dedicated APIs for its core subsystems:
+
+### Analyzers API
+```python
+from refactron.analyzers import CodeSmellAnalyzer, SecurityAnalyzer
+
+# Run specific analyzers programmatically
+code_analyzer = CodeSmellAnalyzer(config)
+issues = code_analyzer.analyze(file_path="src/main.py")
+
+security = SecurityAnalyzer(config)
+vulns = security.detect_vulnerabilities(ast_tree)
+```
+
+### Autofix API
+```python
+from refactron.autofix import AutofixEngine
+
+engine = AutofixEngine(config)
+# Apply fixes for specified issues
+result = engine.apply_fixes(issues, backup=True)
+print(f"Fixed {result.fixed_count} issues. Backup at {result.backup_path}")
+```
+
+### LLM Integration API
+```python
+from refactron.llm import LLMProvider, PromptManager
+
+llm = LLMProvider.get_default(config)
+# Generate a documentation string
+docstring = llm.generate("Write a comprehensive Python docstring for this function", context=func_code)
+
+manager = PromptManager()
+formatted_prompt = manager.create_prompt(task_type="refactor", code_snippet=snippet)
+```
+
+### RAG API
+```python
+from refactron.rag import RAGSearch
+
+# Initialize search index
+search = RAGSearch(config)
+search.index_directory("myproject/")
+
+# Query codebase
+results = search.query("authentication logic", top_k=5)
+for res in results:
+    print(f"Match in {res.file}: {res.score}")
+```
+
+### Refactorers API
+```python
+from refactron.refactorers import ExtractConstantRefactorer
+
+refactorer = ExtractConstantRefactorer(config)
+# Check applicability
+can_refactor = refactorer.is_applicable(node)
+
+if can_refactor:
+    changes = refactorer.compute_diff(node)
+    refactorer.apply(changes)
+```
+
 ## Next Steps
 
 <Card

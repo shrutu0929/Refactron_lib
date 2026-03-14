@@ -265,11 +265,15 @@ refactron auth <command>
 ```
 
 **Commands:**
+- `login` - Log in to account
 - `status` - Check authentication status
 - `logout` - Log out from account
 
 **Examples:**
 ```bash
+# Login
+refactron auth login
+
 # Check auth status
 refactron auth status
 
@@ -288,16 +292,20 @@ refactron repo <command> [options]
 ```
 
 **Commands:**
+- `init` - Initialize repository
 - `list` - List connected repositories
 - `connect` - Connect a repository
 - `disconnect` - Disconnect a repository
 
 **Options:**
-- `--path PATH` - Repository path (for connect)
+- `--path PATH` - Repository path (for connect/init)
 - `--delete-files` - Delete local files (for disconnect)
 
 **Examples:**
 ```bash
+# Initialize repo
+refactron repo init
+
 # List repos
 refactron repo list
 
