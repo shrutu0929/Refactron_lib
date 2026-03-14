@@ -226,30 +226,71 @@ report = {
 }
 ```
 
-## Configuration
+## Advanced Configuration
 
-Customize analysis behavior in `.refactron.yaml`:
+Fine-tune Refactron's analysis behavior by customizing `.refactron.yaml`.
 
-```yaml .refactron.yaml
-# Enable specific analyzers
+### 1. Analyzer Selection & Custom Rules
+
+Enable only the analyzers relevant to your project:
+
+```yaml
 enabled_analyzers:
-  - security
-  - complexity
-  - code_smell
-  - type_hint
-  - dead_code
-  - dependency
+  - security      # Vulnerability scanning
+  - complexity    # Metrics and nesting checks
+  - code_smell    # Long functions, magic numbers
+  - type_hint     # Annotation coverage
+  - dead_code     # Unused logic detection
 
-# Set thresholds
-max_function_complexity: 10
-max_function_length: 50
-max_parameters: 5
-max_nesting_depth: 3
+# Disable specific rules within an analyzer
+disabled_rules:
+  - no-eval-check      # Allow eval() in specific cases
+  - magic-number-ignore-strings
+```
 
-# Exclude patterns
+### 2. Strictness Thresholds
+
+Define what constitutes a "Critical" vs. "Warning" issue for your team:
+
+```yaml
+# Complexity Limits
+max_function_complexity: 8   # Strict gate
+max_nesting_depth: 3         # Prevent 'arrow code'
+max_function_length: 30      # Small, testable units
+
+# Type Hinting Requirements
+require_return_type: true     # Fail if return types are missing
+require_parameter_types: true # Fail if parameters lack hints
+```
+
+### 3. Path Exclusions & Inclusion
+
+Control the scope of analysis to avoid noise from third-party or generated code:
+
+```yaml
+# Global Exclusions
 exclude_patterns:
-  - "*/tests/*"
-  - "*/venv/*"
+  - "**/tests/**"
+  - "**/migrations/**"
+  - "**/venv/**"
+  - "**/dist/**"
+  - "**/__init__.py"  # Ignore empty init files
+
+# Forced Inclusion (overrides exclusions)
+include_patterns:
+  - "**/tests/integration/**" # Analyze integration tests specifically
+```
+
+### 4. Custom Quality Gates (for CI)
+
+Define exit codes and failure thresholds:
+
+```yaml
+quality_gate:
+  fail_on_critical: true
+  fail_on_errors: false
+  max_critical_allowed: 0
+  max_errors_allowed: 10
 ```
 
 ## Ignoring Issues
@@ -283,6 +324,38 @@ exclude_patterns:
 # Analyze specific modules
 refactron analyze src/module1/
 refactron analyze src/module2/
+```
+
+## Real-World Recipes
+
+### Recipe: Scanning for SQL Injection in CI
+
+A common requirement is to block pull requests that introduce critical security issues like SQL Injection. You can run Refactron in a strict mode during your CI pipeline:
+
+```yaml .github/workflows/security-scan.yml
+name: Security Scan
+on: [push, pull_request]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Refactron
+        run: pip install refactron
+      - name: Run Security Analysis
+        run: |
+          # Use focused config for CI
+          refactron analyze . \
+            --config .refactron-ci.yaml \
+            --format json -o security-report.json
+      - name: Fail on Critical Issues
+        run: |
+          # Exit with error if any critical SQLi found
+          if grep -q '"level": "CRITICAL"' security-report.json; then
+            echo "Security check failed!"
+            exit 1
+          fi
 ```
 
 ## Next Steps

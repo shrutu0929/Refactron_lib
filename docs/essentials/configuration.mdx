@@ -109,33 +109,57 @@ pattern_storage_dir: null  # null = auto-detect
   </Accordion>
 </AccordionGroup>
 
-## Threshold Configuration
+## Advanced Threshold Configuration
 
-Adjust thresholds to match your project's standards:
+Refactron allows granular control over thresholds to match your team's specific coding standards. You can configure rules per-analyzer:
 
 ```yaml .refactron.yaml
-# Complexity thresholds
-max_function_complexity: 15        # Default: 10
-max_function_length: 100           # Default: 50
-max_parameters: 7                  # Default: 5
-max_nesting_depth: 4              # Default: 3
+# Complexity analyzers
+complexity:
+  max_function_complexity: 15        # Default: 10
+  max_function_length: 100           # Default: 50
+  max_cognitive_complexity: 20       # Default: 15
+  min_maintainability_index: 60      # Default: 65
 
-# Code quality thresholds
-min_maintainability_index: 60     # Default: 65
-max_cognitive_complexity: 20      # Default: 15
+# Code smell analyzers
+code_smell:
+  max_parameters: 7                  # Default: 5
+  max_nesting_depth: 4               # Default: 3
+  max_returns_count: 5               # Default: 3
+  max_boolean_arguments: 2           # Default: 2
+
+# Security analyzers
+security:
+  strict_mode: true                  # Fail on any security issue
+  check_subprocesses: true
+  check_sql_injection: true
 ```
 
-## Exclude Patterns
+## Advanced Exclude Patterns
 
-Exclude files or directories from analysis:
+You can define powerful exclusion rules using glob patterns, or exclude specific rules within specific directories:
 
 ```yaml .refactron.yaml
 exclude_patterns:
+  # Standard ignore patterns
   - "*/tests/*"
   - "*/migrations/*"
   - "*/venv/*"
   - "*.pyc"
   - "__pycache__"
+  # Ignore generated files
+  - "*/generated/*"
+  - "*_pb2.py"
+
+# Rule-specific exclusions
+per_file_ignores:
+  # Ignore magic numbers in test files
+  "*/tests/*":
+    - magic-number
+  # Ignore high complexity in specific legacy files
+  "legacy_module.py":
+    - complexity
+    - long-function
 ```
 
 ## Environment Variables

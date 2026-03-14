@@ -260,6 +260,120 @@ print(f"AST cache hits: {stats['ast_cache']['hits']}")
 refactron.clear_caches()
 ```
 
+## Core Modules API
+
+Refactron provides dedicated APIs for its core subsystems, allowing you to bypass the high-level `Refactron` class for specialized workflows.
+
+### Analyzers API
+
+The `refactron.analyzers` package contains specialized analyzers for different code quality aspects.
+
+```python
+from refactron.analyzers.code_smell_analyzer import CodeSmellAnalyzer
+from refactron.analyzers.security_analyzer import SecurityAnalyzer
+from refactron.core.config import RefactronConfig
+
+config = RefactronConfig.default()
+
+# 1. Code Smell Analysis
+analyzer = CodeSmellAnalyzer(config)
+issues = analyzer.analyze("src/logic.py")
+
+# 2. Security Analysis
+security = SecurityAnalyzer(config)
+vulnerabilities = security.analyze("src/api.py")
+```
+
+**Key Analyzers:**
+- `ComplexityAnalyzer`: Checks cyclomatic complexity and nesting depth.
+- `SecurityAnalyzer`: Detects SQL injection, insecure imports, and hardcoded secrets.
+- `CodeSmellAnalyzer`: Identifies long functions, magic numbers, and duplicate code.
+- `TypeHintAnalyzer`: Checks for missing or inconsistent type annotations.
+
+---
+
+### Autofix API
+
+The `refactron.autofix` module handles the automated application of fixes for detected issues.
+
+```python
+from refactron.autofix.engine import AutoFixEngine
+
+engine = AutoFixEngine(config)
+
+# Apply fixes to a list of detected issues
+result = engine.apply_fixes(
+    issues=issues,
+    apply=True,      # True to modify files, False for dry-run
+    create_backup=True
+)
+
+print(f"Fixed {result.fixed_count} out of {result.total_count} issues.")
+if result.backup_path:
+    print(f"Safety backup created at: {result.backup_path}")
+```
+
+---
+
+### LLM & AI Triage API
+
+The `refactron.llm` module orchestrates interactions with AI backends for triage and suggestions.
+
+```python
+from refactron.llm.orchestrator import LLMOrchestrator
+
+orchestrator = LLMOrchestrator()
+
+# Use AI to triage an issue and determine if it's a false positive
+is_valid, confidence, reasoning = orchestrator.triage_issue(issue, code_context)
+
+if is_valid and confidence > 0.8:
+    print(f"AI confirmed issue: {reasoning}")
+```
+
+---
+
+### RAG (Code Intelligence) API
+
+The `refactron.rag` module provides semantic search and indexing capabilities.
+
+```python
+from refactron.rag.indexer import Indexer
+from refactron.rag.retriever import Retriever
+
+# 1. Index a project
+indexer = Indexer(config)
+indexer.index_project("my-codebase/")
+
+# 2. Retrieve relevant code snippets semantically
+retriever = Retriever(config)
+matches = retriever.retrieve("How is user authentication implemented?", top_k=3)
+
+for match in matches:
+    print(f"File: {match.file_path} (Score: {match.score})")
+    print(f"Snippet: {match.content[:100]}...")
+```
+
+---
+
+### Refactorers API
+
+Refactorers implement specific transformation logic (e.g., extracting methods).
+
+```python
+from refactron.refactorers.extract_method_refactorer import ExtractMethodRefactorer
+
+refactorer = ExtractMethodRefactorer(config)
+
+# Check if a specific AST node can be refactored
+if refactorer.is_applicable(node):
+    # Preview the change
+    diff = refactorer.get_diff(node)
+    
+    # Apply the change
+    refactorer.apply(node)
+```
+
 ## Next Steps
 
 <Card

@@ -109,342 +109,201 @@ refactron report my project/ --format html -o report.html
 
 ---
 
-## AI Commands
-
-### suggest
-
-Get AI-powered suggestions for specific lines.
-
-```bash
-refactron suggest <path> [options]
-```
-
-**Options:**
-- `--line N` - Target specific line number
-- `--apply` - Apply suggestion immediately
-
-**Examples:**
-```bash
-# Get suggestion for line 42
-refactron suggest myfile.py --line 42
-
-# Apply AI suggestion
-refactron suggest myfile.py --line 42 --apply
-```
-
----
-
-### document
-
-Generate AI-powered documentation.
-
-```bash
-refactron document <path> [options]
-```
-
-**Options:**
-- `--apply` - Apply generated docstrings
-
-**Examples:**
-```bash
-# Preview documentation
-refactron document myfile.py
-
-# Apply documentation
-refactron document myfile.py --apply
-```
-
----
-
-### rag
-
-Manage RAG (Retrieval-Augmented Generation) index.
-
-```bash
-refactron rag <command> [options]
-```
-
-**Commands:**
-- `index` - Index codebase for RAG
-- `search` - Search indexed code
-- `status` - Show index status
-
-**Options:**
-- `--summarize` - Generate AI summaries when indexing
-- `--rerank` - Use AI reranking for search
-- `--update` - Incremental index update
-- `--force` - Force full re-index
-
-**Examples:**
-```bash
-# Index codebase
-refactron rag index
-
-# Index with AI summaries
-refactron rag index --summarize
-
-# Search code
-refactron rag search "authentication logic"
-
-# Search with reranking
-refactron rag search "database queries" --rerank
-
-# Check status
-refactron rag status
-```
-
----
-
-## Pattern Learning Commands
-
-### feedback
-
-Record feedback on refactoring operations.
-
-```bash
-refactron feedback <operation-id> --action <action> [options]
-```
-
-**Options:**
-- `--action ACTION` - accepted, rejected, or ignored
-- `--reason TEXT` - Reason for feedback
-
-**Examples:**
-```bash
-# Accept a suggestion
-refactron feedback op-123 --action accepted
-
-# Reject with reason
-refactron feedback op-456 --action rejected --reason "Breaks API contract"
-```
-
----
-
-### patterns
-
-Manage pattern learning system.
-
-```bash
-refactron patterns <command>
-```
-
-**Commands:**
-- `analyze` - Analyze project patterns
-- `recommend` - Get tuning recommendations
-- `tune` - Apply pattern tuning
-- `profile` - View current pattern profile
-
-**Options:**
-- `--auto` - Auto-apply recommendations (for tune command)
-
-**Examples:**
-```bash
-# Analyze patterns
-refactron patterns analyze
-
-# Get recommendations
-refactron patterns recommend
-
-# Auto-tune
-refactron patterns tune --auto
-
-# View profile
-refactron patterns profile
-```
-
----
-
-## Authentication & Repository
+## Authentication
 
 ### auth
 
-Manage authentication.
+Manage authentication state and telemetry.
 
 ```bash
-refactron auth <command>
+refactron auth <command> [options]
 ```
 
 **Commands:**
-- `status` - Check authentication status
-- `logout` - Log out from account
+- `login` - Interactive device-code login
+- `logout` - Remove local credentials
+- `status` - Show current auth status and plan
+- `telemetry` - Manage usage data collection (`--enable`, `--disable`, `--status`)
 
 **Examples:**
 ```bash
-# Check auth status
+# Check status
 refactron auth status
 
-# Logout
-refactron auth logout
+# Login (top-level alias also works: refactron login)
+refactron auth login
+
+# Disable telemetry
+refactron auth telemetry --disable
 ```
 
 ---
 
+## Workspace & Repository
+
 ### repo
 
-Manage repository connections.
+Manage connections to GitHub repositories.
 
 ```bash
 refactron repo <command> [options]
 ```
 
 **Commands:**
-- `list` - List connected repositories
-- `connect` - Connect a repository
-- `disconnect` - Disconnect a repository
+- `list` - List repositories connected via WebApp
+- `connect` - Link a repository to a local path (auto-clones if no path provided)
+- `disconnect` - Remove local mapping and optionally delete files
 
-**Options:**
-- `--path PATH` - Repository path (for connect)
-- `--delete-files` - Delete local files (for disconnect)
+**Options (connect):**
+- `--path PATH` - Local directory to link (default: `~/.refactron/workspaces/`)
+- `--api-base-url URL` - Custom API endpoint
 
 **Examples:**
 ```bash
-# List repos
+# List available repos
 refactron repo list
 
-# Connect repo
-refactron repo connect my-repo --path /path/to/repo
+# Clone and connect a new repo
+refactron repo connect user/my-repo
 
-# Disconnect repo
-refactron repo disconnect my-repo
+# Link current directory to a repo
+refactron repo connect my-repo --path .
 ```
 
 ---
 
-## Backup & Rollback
+## Analysis & AI
 
-### rollback
+### analyze
 
-Rollback refactoring changes.
+Analyze code for patterns, smells, and complexity.
 
 ```bash
-refactron rollback [options]
+refactron analyze <path> [options]
 ```
 
 **Options:**
-- `--list` - List available rollback sessions
-- `--session ID` - Rollback specific session
-
-**Examples:**
-```bash
-# List sessions
-refactron rollback --list
-
-# Rollback session
-refactron rollback --session abc123
-```
+- `--detailed` - Show full issue details
+- `--summary` - Show summary statistics only
+- `--config FILE` - Path to `.refactron.yaml`
 
 ---
 
-## CI/CD Integration
+### rag
 
-### ci
-
-Generate CI/CD configuration.
+Manage the Retrieval-Augmented Generation (RAG) index for AI context.
 
 ```bash
-refactron ci <platform>
-```
-
-**Platforms:**
-- `github` - GitHub Actions workflow
-- `gitlab` - GitLab CI configuration
-- `pre-commit` - Pre-commit hooks
-
-**Examples:**
-```bash
-# Generate GitHub Actions
-refactron ci github
-
-# Generate GitLab CI
-refactron ci gitlab
-
-# Generate pre-commit hooks
-refactron ci pre-commit
-```
-
----
-
-## Observability
-
-### metrics
-
-View usage metrics.
-
-```bash
-refactron metrics [options]
-```
-
-**Options:**
-- `--format FORMAT` - Output format: json, text
-
-**Examples:**
-```bash
-# View metrics
-refactron metrics
-
-# JSON format
-refactron metrics --format json
-```
-
----
-
-### serve-metrics
-
-Start Prometheus metrics server.
-
-```bash
-refactron serve-metrics [options]
-```
-
-**Options:**
-- `--port N` - Server port (default: 8000)
-
-**Examples:**
-```bash
-# Start metrics server
-refactron serve-metrics
-
-# Custom port
-refactron serve-metrics --port 9090
-```
-
----
-
-### telemetry
-
-Manage telemetry settings.
-
-```bash
-refactron telemetry <command>
+refactron rag <command> [options]
 ```
 
 **Commands:**
-- `enable` - Enable telemetry
-- `disable` - Disable telemetry
-- `status` - Show telemetry status
+- `index` - Index the current workspace
+- `search` - Semantic search across the codebase
+- `status` - Check indexing progress
 
-**Examples:**
+**Options (index):**
+- `--summarize` - Generate AI summaries for each file (uses LLM)
+- `--force` - Re-index all files even if unchanged
+- `--background` - Run indexing in a detached process
+
+---
+
+### suggest
+
+Get AI-powered improvement suggestions for specific code blocks.
+
 ```bash
-# Check status
-refactron telemetry status
-
-# Disable telemetry
-refactron telemetry disable
+refactron suggest <path> --line <n> [options]
 ```
 
 ---
 
-## Configuration
+## Refactoring
+
+### refactor
+
+Apply or preview automated refactoring.
+
+```bash
+refactron refactor <path> [options]
+```
+
+**Options:**
+- `--ai` - Enable LLM-powered refactoring logic
+- `--type <type>` - Filter by: `extract_method`, `magic_number`, `simplify_conditionals`, `reduce_parameters`, `add_docstring`
+- `--risk-level <level>` - Filter by risk: `safe`, `low`, `moderate`, `high`
+
+---
+
+### autofix
+
+Apply common fixes automatically (non-AI based).
+
+```bash
+refactron autofix <path> [options]
+```
+
+---
+
+## Patterns & Feedback
+
+### feedback
+
+Provide feedback on AI suggestions to improve future results.
+
+```bash
+refactron feedback <operation-id> --action <action> [options]
+```
+
+**Actions:** `accepted`, `rejected`, `ignored`
+
+---
+
+### patterns
+
+Manage the local pattern-learning engine.
+
+```bash
+refactron patterns <command> [options]
+```
+
+**Commands:**
+- `analyze` - Show project-specific acceptance rates
+- `recommend` - Generate tuning suggestions
+- `tune` - Apply weights and enable/disable rules based on feedback
+- `profile` - View current project tuning profile
+
+---
+
+## Infrastructure
+
+### generate-cicd
+
+Generate integration templates for various platforms.
+
+```bash
+refactron generate-cicd <type> [options]
+```
+
+**Types:** `github`, `gitlab`, `pre-commit`, `all`
+
+**Options:**
+- `--python-versions` - Comma-separated list (e.g., `3.10,3.11,3.12`)
+- `--max-errors N` - Fail build if errors exceed N
+
+---
 
 ### init
 
-Initialize Refactron configuration.
+Initialize a new Refactron project with a configuration template.
 
 ```bash
-refactron init
+refactron init [options]
 ```
 
-Creates `.refactron.yaml` in current directory with default settings.
+**Options:**
+- `--template <name>` - Templates: `base`, `django`, `fastapi`, `flask`
 
 ---
 
