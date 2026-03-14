@@ -1,5 +1,5 @@
 """Data models for Refactron."""
- 
+
 from __future__ import annotations
 
 import uuid

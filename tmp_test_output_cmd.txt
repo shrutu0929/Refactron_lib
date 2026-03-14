@@ -1,0 +1,115 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.0, pytest-9.0.2, pluggy-1.6.0 -- C:\Program Files\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Shruti kulkarni\Downloads\Refactron_lib
+configfile: pyproject.toml
+plugins: anyio-4.12.1, cov-7.0.0
+collecting ... collected 1 item
+
+tests/test_patterns_feedback.py::TestPatternLearningConfigIntegration::test_pattern_ranking_disabled DEBUG: ranking_enabled=False, ai_triage=False
+PASSED
+
+============================== warnings summary ===============================
+..\..\AppData\Roaming\Python\Python314\site-packages\chromadb\telemetry\opentelemetry\__init__.py:128
+  C:\Users\Shruti kulkarni\AppData\Roaming\Python\Python314\site-packages\chromadb\telemetry\opentelemetry\__init__.py:128: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(f):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.14.0-final-0 _______________
+
+Name                                                        Stmts   Miss  Cover
+-------------------------------------------------------------------------------
+refactron\__init__.py                                           7      0   100%
+refactron\ai\__init__.py                                        0      0   100%
+refactron\analyzers\__init__.py                                 0      0   100%
+refactron\analyzers\base_analyzer.py                           15      2    87%
+refactron\analyzers\code_smell_analyzer.py                    239    210    12%
+refactron\analyzers\complexity_analyzer.py                     89     74    17%
+refactron\analyzers\dead_code_analyzer.py                     135    119    12%
+refactron\analyzers\dependency_analyzer.py                    147    124    16%
+refactron\analyzers\performance_analyzer.py                   107     92    14%
+refactron\analyzers\security_analyzer.py                      285    250    12%
+refactron\analyzers\type_hint_analyzer.py                     119    103    13%
+refactron\autofix\__init__.py                                   3      3     0%
+refactron\autofix\engine.py                                    38     38     0%
+refactron\autofix\file_ops.py                                  84     84     0%
+refactron\autofix\fixers.py                                   309    309     0%
+refactron\autofix\models.py                                    20     20     0%
+refactron\cicd\__init__.py                                      6      6     0%
+refactron\cicd\github_actions.py                               27     27     0%
+refactron\cicd\gitlab_ci.py                                    20     20     0%
+refactron\cicd\pr_integration.py                               87     87     0%
+refactron\cicd\pre_commit.py                                   25     25     0%
+refactron\cicd\quality_gates.py                               104    104     0%
+refactron\cli.py                                             1608   1608     0%
+refactron\cli\__init__.py                                       2      2     0%
+refactron\cli\__main__.py                                       1      1     0%
+refactron\cli\analysis.py                                     258    258     0%
+refactron\cli\auth.py                                         152    152     0%
+refactron\cli\cicd.py                                         133    133     0%
+refactron\cli\main.py                                          92     92     0%
+refactron\cli\patterns.py                                     155    155     0%
+refactron\cli\rag.py                                          108    108     0%
+refactron\cli\refactor.py                                     244    244     0%
+refactron\cli\repo.py                                         173    173     0%
+refactron\cli\ui.py                                           276    276     0%
+refactron\cli\utils.py                                         93     93     0%
+refactron\core\__init__.py                                      3      0   100%
+refactron\core\analysis_result.py                              88     61    31%
+refactron\core\backup.py                                      237    196    17%
+refactron\core\cache.py                                       110     84    24%
+refactron\core\config.py                                       82     17    79%
+refactron\core\config_loader.py                                80     63    21%
+refactron\core\config_templates.py                             33     33     0%
+refactron\core\config_validator.py                            112     97    13%
+refactron\core\credentials.py                                  58     35    40%
+refactron\core\device_auth.py                                  96     96     0%
+refactron\core\exceptions.py                                   76     62    18%
+refactron\core\false_positive_tracker.py                       38     38     0%
+refactron\core\incremental.py                                 112     81    28%
+refactron\core\logging_config.py                               59     15    75%
+refactron\core\memory_profiler.py                             101     67    34%
+refactron\core\metrics.py                                     124     72    42%
+refactron\core\models.py                                       56      7    88%
+refactron\core\parallel.py                                     92     70    24%
+refactron\core\prometheus_metrics.py                          143    123    14%
+refactron\core\refactor_result.py                              91     69    24%
+refactron\core\refactron.py                                   353    244    31%
+refactron\core\repositories.py                                 83     83     0%
+refactron\core\telemetry.py                                   113     79    30%
+refactron\core\workspace.py                                   111    111     0%
+refactron\llm\__init__.py                                       3      0   100%
+refactron\llm\backend_client.py                                44     36    18%
+refactron\llm\client.py                                        32     22    31%
+refactron\llm\models.py                                        27      2    93%
+refactron\llm\orchestrator.py                                 156    136    13%
+refactron\llm\prompts.py                                        6      0   100%
+refactron\llm\safety.py                                        57     49    14%
+refactron\multifile\__init__.py                                 0      0   100%
+refactron\patterns\__init__.py                                  9      0   100%
+refactron\patterns\fingerprint.py                             110     97    12%
+refactron\patterns\learner.py                                 157    136    13%
+refactron\patterns\learning_service.py                        102     86    16%
+refactron\patterns\matcher.py                                  89     73    18%
+refactron\patterns\models.py                                  179    107    40%
+refactron\patterns\ranker.py                                  105     90    14%
+refactron\patterns\storage.py                                 214    165    23%
+refactron\patterns\tuner.py                                   118     91    23%
+refactron\rag\__init__.py                                       3      0   100%
+refactron\rag\chunker.py                                       65     45    31%
+refactron\rag\indexer.py                                      121     87    28%
+refactron\rag\parser.py                                       218    173    21%
+refactron\rag\retriever.py                                     60     32    47%
+refactron\refactorers\__init__.py                               0      0   100%
+refactron\refactorers\add_docstring_refactorer.py             119    101    15%
+refactron\refactorers\base_refactorer.py                       15      2    87%
+refactron\refactorers\extract_method_refactorer.py             37     26    30%
+refactron\refactorers\magic_number_refactorer.py               90     77    14%
+refactron\refactorers\reduce_parameters_refactorer.py          54     42    22%
+refactron\refactorers\simplify_conditionals_refactorer.py      43     31    28%
+refactron\rules\__init__.py                                     0      0   100%
+-------------------------------------------------------------------------------
+TOTAL                                                        9845   8501    14%
+Coverage HTML written to dir htmlcov
+======================== 1 passed, 1 warning in 4.91s =========================

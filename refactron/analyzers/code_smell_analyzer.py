@@ -1,5 +1,5 @@
 """Analyzer for code smells and anti-patterns."""
- 
+
 from __future__ import annotations
 
 import ast
