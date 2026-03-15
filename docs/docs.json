@@ -25,7 +25,8 @@
         "pages": [
           "essentials/installation",
           "essentials/configuration",
-          "essentials/authentication"
+          "essentials/authentication",
+          "essentials/changelog"
         ]
       },
       {

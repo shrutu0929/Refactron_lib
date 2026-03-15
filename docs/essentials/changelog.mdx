@@ -1,0 +1,145 @@
+---
+title: Changelog
+description: 'All notable changes to Refactron are documented here.'
+---
+
+<Note>
+  The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+  and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+</Note>
+
+## Upcoming
+
+<Update label="Planned" description="Roadmap">
+  ### Features
+  - **AI-powered pattern recognition**: Automated identification of project-specific refactoring opportunities.
+  - **VS Code extension**: Native integration with Visual Studio Code.
+  - **PyCharm plugin**: Native integration with JetBrains IDEs.
+  - **Advanced custom rule engine**: DSL for defining project-specific refactoring rules.
+  - **Performance profiling**: Deep analysis of code execution bottlenecks.
+</Update>
+
+---
+
+## Releases
+
+<Update label="v1.0.15" description="2026-02-08">
+  <Badge text="Latest" color="blue" /> 
+  ### 🎉 AI-Powered Intelligence Release
+  
+  This major update introduces the core AI and RAG capabilities of Refactron.
+
+  #### Added
+  - **LLM/RAG Integration**: Full semantic intelligence suite using Llama 3 (via Groq) and ChromaDB.
+  - **Repository Management**: New `repo` command group (`list`, `connect`, `disconnect`) for managing local workspaces and auto-indexing.
+  - **AI-Powered Commands**:
+      - `refactron suggest`: Contextual refactoring proposals.
+      - `refactron document`: Automated Google-style docstring generation.
+  - **Observability & Metrics**:
+      - `refactron metrics`: Detailed performance and analyzer statistics.
+      - `refactron serve-metrics`: Prometheus-compatible endpoint.
+      - `refactron telemetry`: Opt-in anonymous usage statistics.
+  - **CI/CD Integration**: `refactron ci` command to generate GitHub Actions and GitLab CI configurations.
+  - **Improved CLI UI**: New interactive dashboard and file selector.
+
+  #### Fixed
+  - **Security**: Hardened URL sanitization in workspace management to prevent injection attacks.
+  - **Compatibility**: Resolved Python 3.8 issues in RAG parsing, Tree-sitter API, and fingerprinting.
+  - **Reliability**: Added missing `GroqClient` dependency and cleaned up project-wide linting issues.
+  - **Indexer Reliability**: Fixed missing `GroqClient` import and clarified error messages in the RAG indexer.
+
+  #### Changed
+  - Improved CLI startup sequence and progress feedback for RAG indexing operations.
+  - Updated documentation files to reflect the new AI-powered features.
+  - Applied project-wide linting and code style fixes.
+
+  [View on GitHub](https://github.com/shrutu0929/Refactron_lib/releases/tag/v1.0.15)
+</Update>
+
+<Update label="v1.0.14" description="2026-01-30">
+  #### Changed
+  - Refactored CLI startup sequence to display animation before authentication prompt.
+  - Improved dependency management (added `astroid`).
+
+  [View on GitHub](https://github.com/shrutu0929/Refactron_lib/releases/tag/v1.0.14)
+</Update>
+
+<Update label="v1.0.13" description="2026-01-30">
+  #### Added
+  - **Pattern Learning Engine**: Foundation for identifying and learning project-specific refactoring patterns.
+  - **Project-Specific Rule Tuner**: CLI commands to tune refactoring rules based on project needs.
+  - **Suggestion Ranking System**: Intelligent ranking of refactoring suggestions based on risk and impact.
+  - **Feedback Collection System**: Interactive feedback loop to improve pattern recognition over time.
+  - **Enhanced Welcome Flow**: Sleek startup animation with system checks and rotating quick tips.
+  - **Interactive Dashboard**: Minimal "Info Center" for quick access to help and version information.
+  - **Custom Help Formatter**: Beautifully formatted, numbered help output for better command discovery.
+  - **Authentication Enforcement**: Mandatory authentication for all core commands (analyze, refactor, etc.).
+  - **AST Cache & Incremental Analysis**: Faster analysis by only processing changed files.
+  - **Parallel Processing**: Multi-threaded analysis for large codebases.
+  - **Backup & Rollback System**: Git-integrated safety system to undo refactoring changes.
+  - **Enhanced Error Handling**: Custom exceptions and graceful degradation for a more robust experience.
+  - **Advanced Configuration Management**: Support for profiles, validation, and project-specific settings.
+  - **CI/CD Integration Templates**: Pre-configured templates for GitHub Actions and other CI/CD platforms.
+  - **Prometheus Metrics**: Built-in support for exporting metrics to Prometheus.
+
+  #### Fixed
+  - Resolved numerous linting and type-checking issues across the codebase.
+  - Improved Python 3.8 compatibility with explicit type hints.
+  - Optimized project type detection for large codebases.
+  - Fixed critical issues in feedback persistence and test isolation.
+
+  [View on GitHub](https://github.com/shrutu0929/Refactron_lib/releases/tag/v1.0.13)
+</Update>
+
+<Update label="v1.0.1" description="2025-12-28">
+  #### Added
+  - **New Security Patterns**: SQL parameterization, SSRF detection, insecure random generation, weak SSL/TLS config.
+  - **Complexity Analyzer Improvements**: Nested loop depth detection, method call chain complexity.
+  - **Performance Analyzer**: N+1 query detection, inefficient list comprehensions, unnecessary iterations.
+  - **False Positive Reduction**: Context-aware security analysis, rule whitelisting, confidence scores.
+  - **Test Coverage**: Achieved 96.8% test coverage for analyzer modules.
+  - **Developer Experience**: Pre-commit hooks, SECURITY.md, CONTRIBUTING_QUICKSTART.md.
+
+  #### Changed
+  - Formatted 10 files with Black.
+  - Updated README with accurate test coverage.
+  - Security analyzer now uses context-aware confidence scoring.
+
+  #### Fixed
+  - Fixed flake8 violations across multiple refactorers.
+  - Fixed code formatting issues in examples directory.
+
+  [View on GitHub](https://github.com/shrutu0929/Refactron_lib/releases/tag/v1.0.1)
+</Update>
+
+<Update label="v1.0.0" description="2025-10-27">
+  ### 🎉 Major Release - Production Ready!
+  
+  #### Added
+  - **Auto-fix Engine**: Intelligent automatic code fixing with safety guarantees.
+  - **14 Automatic Fixers**: Including `remove_unused_imports`, `sort_imports`, `extract_magic_numbers`, etc.
+  - **File Operations & Safety**: Atomic file writes, automatic backups, and a robust rollback system.
+  - **CLI Enhancements**: New `refactron autofix` command with safety level flags and preview mode.
+
+  #### Improved
+  - **Test Coverage**: Increased to 135 tests (81% overall coverage).
+  - **Production Status**: Officially changed from Beta to Stable.
+
+  [View on GitHub](https://github.com/shrutu0929/Refactron_lib/releases/tag/v1.0.0)
+</Update>
+
+<Update label="v0.1.0-beta" description="2025-10-25">
+  ### 🎉 Initial Beta Release
+  
+  #### Added
+  - **Core Features**: Plugin-based analyzer system, refactoring suggestion engine, risk scoring.
+  - **Analyzers (8 Total)**: Complexity, Code Smell, Security, Dependency, Dead Code, Type Hint, Extract Method.
+  - **Refactorers (6 Total)**: Magic Number, Reduce Parameters, Simplify Conditionals, Add Docstring, Extract Method.
+  - **CLI Commands**: `analyze`, `refactor`, `report`, `init`.
+
+  #### Performance
+  - **Analysis Speed**: 4,300 lines per second.
+  - **Reliability**: 0 critical security issues in production code.
+
+  [View on GitHub](https://github.com/shrutu0929/Refactron_lib/releases/tag/v0.1.0-beta)
+</Update>
