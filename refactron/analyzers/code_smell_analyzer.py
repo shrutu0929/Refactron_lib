@@ -40,6 +40,9 @@ class CodeSmellAnalyzer(BaseAnalyzer):
             issues.extend(self._check_missing_docstrings(tree, file_path))
             issues.extend(self._check_unused_imports(tree, file_path, source_code))
             issues.extend(self._check_repeated_code_blocks(tree, file_path))
+            issues.extend(self._check_semantic_duplicates(tree, file_path))
+            issues.extend(self._check_ai_improvements(source_code, file_path))
+            self._add_ai_explanations(issues, source_code, file_path)
 
         except SyntaxError as e:
             issue = CodeIssue(
@@ -360,3 +363,135 @@ class CodeSmellAnalyzer(BaseAnalyzer):
                         break  # Only report once per function
 
         return issues
+
+    def _check_semantic_duplicates(self, tree: ast.AST, file_path: Path) -> List[CodeIssue]:
+        """Check for semantically similar functions using AI."""
+        issues = []
+        
+        # This is expensive, so we only do it if LLM is available and 
+        # we have at least two functions
+        if not hasattr(self, "orchestrator") or not self.orchestrator:
+            return []
+
+        functions = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if hasattr(ast, "unparse"):
+                    functions.append((node.name, ast.unparse(node), node.lineno))
+                else:
+                    # Fallback for older Python
+                    functions.append((node.name, ast.dump(node), node.lineno))
+
+        if len(functions) < 2:
+            return []
+
+        # To keep it efficient, we only compare pairs of functions
+        for i in range(len(functions)):
+            for j in range(i + 1, len(functions)):
+                name1, code1, lineno1 = functions[i]
+                name2, code2, lineno2 = functions[j]
+                
+                # Skip if names are already checked by _check_duplicate_code numbered suffixes
+                if name1.rstrip("0123456789") == name2.rstrip("0123456789"):
+                    continue
+
+                # Limit size to avoid huge prompts
+                if len(code1) > 2000 or len(code2) > 2000:
+                    continue
+
+                result = self.orchestrator.check_semantic_similarity(code1, code2)
+                if result.get("similarity_score", 0) > 0.85:
+                    issues.append(
+                        CodeIssue(
+                            category=IssueCategory.CODE_SMELL,
+                            level=IssueLevel.WARNING,
+                            message=f"Semantic duplication detected between '{name1}' and '{name2}'",
+                            file_path=file_path,
+                            line_number=lineno2,
+                            suggestion=f"Consolidate '{name1}' and '{name2}' into a single function. Reasoning: {result.get('reasoning')}",
+                            rule_id="S008",
+                            metadata={
+                                "function1": name1,
+                                "function2": name2,
+                                "similarity_score": result.get("similarity_score")
+                            }
+                        )
+                    )
+                    # Once we find one duplication for a function pair, move to next
+                    break
+
+        return issues
+
+    def _check_ai_improvements(self, source_code: str, file_path: Path) -> List[CodeIssue]:
+        """Use AI to suggest better variable names and method extractions."""
+        issues = []
+        
+        if not hasattr(self, "orchestrator") or not self.orchestrator:
+            return []
+
+        # Only run on reasonably sized files to avoid overhead
+        if len(source_code) > 10000:
+            return []
+
+        improvements = self.orchestrator.get_code_improvements(source_code)
+        
+        # 1. Variable Renames
+        renames = improvements.get("variable_renames", {})
+        if renames:
+            msg = "AI suggested variable renames: " + ", ".join([f"{k} -> {v}" for k, v in renames.items()])
+            issues.append(
+                CodeIssue(
+                    category=IssueCategory.MAINTAINABILITY,
+                    level=IssueLevel.INFO,
+                    message=msg,
+                    file_path=file_path,
+                    line_number=1,
+                    suggestion="Consider using more descriptive names for improved readability.",
+                    rule_id="S009",
+                    metadata={"renames": renames}
+                )
+            )
+
+        # 2. Method Extractions
+        extractions = improvements.get("method_extractions", [])
+        for ext in extractions:
+            lines = ext.get("lines", [0, 0])
+            issues.append(
+                CodeIssue(
+                    category=IssueCategory.CODE_SMELL,
+                    level=IssueLevel.INFO,
+                    message=f"Possible method extraction: '{ext.get('name')}'",
+                    file_path=file_path,
+                    line_number=lines[0] if lines else 1,
+                    suggestion=f"Reason: {ext.get('reason')}",
+                    rule_id="S010",
+                    metadata={"method_name": ext.get("name"), "lines": lines}
+                )
+            )
+
+        return issues
+
+    def _add_ai_explanations(self, issues: List[CodeIssue], source_code: str, file_path: Path) -> None:
+        """Add AI-generated natural language explanations to complex issues."""
+        if not hasattr(self, "orchestrator") or not self.orchestrator:
+            return
+
+        # Only explain high-priority issues to save tokens
+        complex_issues = [
+            i for i in issues 
+            if i.level in (IssueLevel.WARNING, IssueLevel.ERROR, IssueLevel.CRITICAL)
+        ]
+
+        # Limit to first 3 complex issues per file
+        for issue in complex_issues[:3]:
+            # Simple heuristic for code snippet context
+            lines = source_code.split("\n")
+            start = max(0, issue.line_number - 5)
+            end = min(len(lines), issue.line_number + 5)
+            snippet = "\n".join(lines[start:end])
+
+            explanation = self.orchestrator.explain_issue(issue, snippet)
+            if explanation:
+                if not issue.metadata:
+                    issue.metadata = {}
+                issue.metadata["ai_explanation"] = explanation

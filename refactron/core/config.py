@@ -130,6 +130,15 @@ class RefactronConfig:
     pattern_learning_enabled: bool = True  # Enable learning from feedback
     pattern_ranking_enabled: bool = True  # Enable ranking based on learned patterns
 
+    # LLM Settings
+    preferred_llm_provider: str = "groq"  # groq, openai, anthropic, backend
+    openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o"
+    anthropic_api_key: Optional[str] = None
+    anthropic_model: str = "claude-3-5-sonnet-20240620"
+    groq_api_key: Optional[str] = None
+    groq_model: str = "llama-3.3-70b-versatile"
+
     @classmethod
     def from_file(
         cls,
@@ -243,6 +252,13 @@ class RefactronConfig:
             ),
             "pattern_learning_enabled": self.pattern_learning_enabled,
             "pattern_ranking_enabled": self.pattern_ranking_enabled,
+            "preferred_llm_provider": self.preferred_llm_provider,
+            "openai_api_key": self.openai_api_key,
+            "openai_model": self.openai_model,
+            "anthropic_api_key": self.anthropic_api_key,
+            "anthropic_model": self.anthropic_model,
+            "groq_api_key": self.groq_api_key,
+            "groq_model": self.groq_model,
         }
 
         try:

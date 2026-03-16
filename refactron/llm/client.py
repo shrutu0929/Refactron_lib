@@ -92,3 +92,119 @@ class GroqClient:
             return True
         except Exception:
             return False
+
+try:
+    from openai import OpenAI
+
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+try:
+    from anthropic import Anthropic
+
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+
+
+class OpenAIClient:
+    """Client for OpenAI API."""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "gpt-4o",
+        temperature: float = 0.2,
+        max_tokens: int = 2000,
+    ):
+        """Initialize OpenAI client."""
+        if not OPENAI_AVAILABLE:
+            raise RuntimeError("OpenAI is not available. Install with: pip install openai")
+
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            raise RuntimeError("OPENAI_API_KEY environment variable not set.")
+
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.client = OpenAI(api_key=self.api_key)
+
+    def generate(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        """Generate text using OpenAI."""
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=temperature or self.temperature,
+            max_tokens=max_tokens or self.max_tokens,
+        )
+        return cast(str, response.choices[0].message.content)
+
+    def check_health(self) -> bool:
+        """Check if the OpenAI API is accessible."""
+        try:
+            self.generate("Hello", max_tokens=5)
+            return True
+        except Exception:
+            return False
+
+
+class AnthropicClient:
+    """Client for Anthropic API."""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "claude-3-5-sonnet-20240620",
+        temperature: float = 0.2,
+        max_tokens: int = 2000,
+    ):
+        """Initialize Anthropic client."""
+        if not ANTHROPIC_AVAILABLE:
+            raise RuntimeError("Anthropic is not available. Install with: pip install anthropic")
+
+        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            raise RuntimeError("ANTHROPIC_API_KEY environment variable not set.")
+
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.client = Anthropic(api_key=self.api_key)
+
+    def generate(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        """Generate text using Anthropic."""
+        response = self.client.messages.create(
+            model=self.model,
+            system=system if system else None,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature or self.temperature,
+            max_tokens=max_tokens or self.max_tokens,
+        )
+        return cast(str, response.content[0].text)
+
+    def check_health(self) -> bool:
+        """Check if the Anthropic API is accessible."""
+        try:
+            self.generate("Hello", max_tokens=5)
+            return True
+        except Exception:
+            return False

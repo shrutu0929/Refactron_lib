@@ -9,12 +9,16 @@ from typing import Dict, List, Optional, Union
 
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
 from refactron.llm.backend_client import BackendLLMClient
-from refactron.llm.client import GroqClient
+from refactron.llm.client import AnthropicClient, GroqClient, OpenAIClient
 from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
 from refactron.llm.prompts import (
     BATCH_TRIAGE_PROMPT,
     BATCH_TRIAGE_SYSTEM_PROMPT,
+    CODE_IMPROVEMENT_PROMPT,
     DOCUMENTATION_PROMPT,
+    DOCSTRING_PROMPT,
+    ISSUE_EXPLANATION_PROMPT,
+    SEMANTIC_SIMILARITY_PROMPT,
     SUGGESTION_PROMPT,
     SYSTEM_PROMPT,
 )
@@ -30,7 +34,7 @@ class LLMOrchestrator:
     def __init__(
         self,
         retriever: Optional[ContextRetriever] = None,
-        llm_client: Optional[Union[GroqClient, BackendLLMClient]] = None,
+        llm_client: Optional[Union[GroqClient, BackendLLMClient, OpenAIClient, AnthropicClient]] = None,
         safety_gate: Optional[SafetyGate] = None,
     ):
         self.retriever = retriever
@@ -38,9 +42,12 @@ class LLMOrchestrator:
         if llm_client:
             self.client = llm_client
         else:
-            # Try to use GroqClient if API key is present,
-            # otherwise use BackendLLMClient
-            if os.getenv("GROQ_API_KEY"):
+            # Check for various LLM provider API keys
+            if os.getenv("OPENAI_API_KEY"):
+                self.client = OpenAIClient()
+            elif os.getenv("ANTHROPIC_API_KEY"):
+                self.client = AnthropicClient()
+            elif os.getenv("GROQ_API_KEY"):
                 try:
                     self.client = GroqClient()
                 except RuntimeError:
@@ -342,6 +349,83 @@ class LLMOrchestrator:
             logger.error(f"Batch triage failed: {e}")
             # Fallback: return default confidence
             return {str(k): 0.5 for k in issues_data.keys()}
+
+    def generate_docstring(self, code: str) -> str:
+        """Generate a docstring for the provided code.
+
+        Args:
+            code: The code snippet to document
+
+        Returns:
+            The generated docstring
+        """
+        try:
+            prompt = DOCSTRING_PROMPT.format(code=code)
+            return self.client.generate(prompt=prompt, system=SYSTEM_PROMPT, temperature=0.1)
+        except Exception as e:
+            logger.error(f"Docstring generation failed: {e}")
+            return f'"""Error generating docstring: {str(e)}"""'
+
+    def explain_issue(self, issue: CodeIssue, code_snippet: str, context: str = "") -> str:
+        """Provide a natural language explanation for a code issue.
+
+        Args:
+            issue: The code issue
+            code_snippet: The relevant code
+            context: Optional additional context
+
+        Returns:
+            A clean explanation
+        """
+        try:
+            prompt = ISSUE_EXPLANATION_PROMPT.format(
+                issue_message=issue.message, code_snippet=code_snippet, context=context
+            )
+            return self.client.generate(prompt=prompt, system=SYSTEM_PROMPT, temperature=0.3)
+        except Exception as e:
+            logger.error(f"Issue explanation failed: {e}")
+            return f"Error explaining issue: {str(e)}"
+
+    def get_code_improvements(self, code: str) -> Dict[str, Any]:
+        """Suggest variable renames and method extractions.
+
+        Args:
+            code: The code to analyze
+
+        Returns:
+            Dict containing variable_renames and method_extractions
+        """
+        try:
+            prompt = CODE_IMPROVEMENT_PROMPT.format(code=code)
+            response_text = self.client.generate(
+                prompt=prompt, system=SYSTEM_PROMPT, temperature=0.2
+            )
+            clean_text = self._clean_json_response(response_text)
+            return json.loads(clean_text, strict=False)
+        except Exception as e:
+            logger.error(f"Code improvement suggestion failed: {e}")
+            return {"variable_renames": {}, "method_extractions": []}
+
+    def check_semantic_similarity(self, code1: str, code2: str) -> Dict[str, Any]:
+        """Check if two code fragments are semantically similar.
+
+        Args:
+            code1: First code fragment
+            code2: Second code fragment
+
+        Returns:
+            Dict containing similarity_score and reasoning
+        """
+        try:
+            prompt = SEMANTIC_SIMILARITY_PROMPT.format(code1=code1, code2=code2)
+            response_text = self.client.generate(
+                prompt=prompt, system=SYSTEM_PROMPT, temperature=0.1
+            )
+            clean_text = self._clean_json_response(response_text)
+            return json.loads(clean_text, strict=False)
+        except Exception as e:
+            logger.error(f"Semantic similarity check failed: {e}")
+            return {"similarity_score": 0.0, "reasoning": f"Analysis failed: {str(e)}"}
 
     def _clean_json_response(self, text: str) -> str:
         """Clean LLM response to extract JSON."""

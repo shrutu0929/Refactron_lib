@@ -130,3 +130,78 @@ Return ONLY a JSON map where the keys are the issue IDs and the values are the
 confidence scores (float between 0.0 and 1.0).
 Do NOT return anything except the JSON object.
 """
+
+DOCSTRING_PROMPT = """
+Analyze the following Python code and generate a high-quality Google-style docstring.
+
+Code:
+```python
+{code}
+```
+
+Instructions:
+1. Provide ONLY the docstring itself.
+2. Include a summary, Args section (with types), and Returns section.
+3. Keep it concise and professional.
+"""
+
+ISSUE_EXPLANATION_PROMPT = """
+Explain the following code issue in natural language for a developer.
+
+Issue: {issue_message}
+Code Snippet:
+```python
+{code_snippet}
+```
+
+Context:
+{context}
+
+Goal:
+Explain WHY this is an issue and WHAT the potential impact is. Keep it brief and helpful.
+"""
+
+CODE_IMPROVEMENT_PROMPT = """
+Analyze the following code for potential naming and structural improvements.
+
+Code:
+```python
+{code}
+```
+
+Identify:
+1. Variable names that could be more descriptive.
+2. Logic blocks that should be extracted into separate methods.
+
+Output ONLY JSON in this format:
+{{
+    "variable_renames": {{"old_name": "new_name"}},
+    "method_extractions": [
+        {{
+            "name": "suggested_method_name",
+            "lines": [start_line, end_line],
+            "reason": "why extract this"
+        }}
+    ]
+}}
+"""
+
+SEMANTIC_SIMILARITY_PROMPT = """
+Compare these two code fragments and determine if they are semantically similar (i.e., they do the same thing using different syntax or names).
+
+Fragment 1:
+```python
+{code1}
+```
+
+Fragment 2:
+```python
+{code2}
+```
+
+Output ONLY a JSON object with:
+{{
+    "similarity_score": float (0.0 to 1.0),
+    "reasoning": "Brief explanation of structural similarity"
+}}
+"""
