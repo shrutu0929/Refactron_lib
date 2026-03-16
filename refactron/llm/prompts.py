@@ -187,7 +187,8 @@ Output ONLY JSON in this format:
 """
 
 SEMANTIC_SIMILARITY_PROMPT = """
-Compare these two code fragments and determine if they are semantically similar (i.e., they do the same thing using different syntax or names).
+Compare these two code fragments and determine if they are semantically similar
+(i.e., they do the same thing using different syntax or names).
 
 Fragment 1:
 ```python

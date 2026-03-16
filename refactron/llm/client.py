@@ -93,6 +93,7 @@ class GroqClient:
         except Exception:
             return False
 
+
 try:
     from openai import OpenAI
 

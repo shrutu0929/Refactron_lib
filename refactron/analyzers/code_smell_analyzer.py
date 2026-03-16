@@ -367,8 +367,8 @@ class CodeSmellAnalyzer(BaseAnalyzer):
     def _check_semantic_duplicates(self, tree: ast.AST, file_path: Path) -> List[CodeIssue]:
         """Check for semantically similar functions using AI."""
         issues = []
-        
-        # This is expensive, so we only do it if LLM is available and 
+
+        # This is expensive, so we only do it if LLM is available and
         # we have at least two functions
         if not hasattr(self, "orchestrator") or not self.orchestrator:
             return []
@@ -390,7 +390,7 @@ class CodeSmellAnalyzer(BaseAnalyzer):
             for j in range(i + 1, len(functions)):
                 name1, code1, lineno1 = functions[i]
                 name2, code2, lineno2 = functions[j]
-                
+
                 # Skip if names are already checked by _check_duplicate_code numbered suffixes
                 if name1.rstrip("0123456789") == name2.rstrip("0123456789"):
                     continue
@@ -405,16 +405,22 @@ class CodeSmellAnalyzer(BaseAnalyzer):
                         CodeIssue(
                             category=IssueCategory.CODE_SMELL,
                             level=IssueLevel.WARNING,
-                            message=f"Semantic duplication detected between '{name1}' and '{name2}'",
+                            message=(
+                                f"Semantic duplication detected between '{name1}' " f"and '{name2}'"
+                            ),
                             file_path=file_path,
                             line_number=lineno2,
-                            suggestion=f"Consolidate '{name1}' and '{name2}' into a single function. Reasoning: {result.get('reasoning')}",
+                            suggestion=(
+                                f"Consolidate '{name1}' and '{name2}' into a single function. "
+                                "Reasoning: "
+                                f"{result.get('reasoning')}"
+                            ),
                             rule_id="S008",
                             metadata={
                                 "function1": name1,
                                 "function2": name2,
-                                "similarity_score": result.get("similarity_score")
-                            }
+                                "similarity_score": result.get("similarity_score"),
+                            },
                         )
                     )
                     # Once we find one duplication for a function pair, move to next
@@ -425,7 +431,7 @@ class CodeSmellAnalyzer(BaseAnalyzer):
     def _check_ai_improvements(self, source_code: str, file_path: Path) -> List[CodeIssue]:
         """Use AI to suggest better variable names and method extractions."""
         issues = []
-        
+
         if not hasattr(self, "orchestrator") or not self.orchestrator:
             return []
 
@@ -434,11 +440,13 @@ class CodeSmellAnalyzer(BaseAnalyzer):
             return []
 
         improvements = self.orchestrator.get_code_improvements(source_code)
-        
+
         # 1. Variable Renames
         renames = improvements.get("variable_renames", {})
         if renames:
-            msg = "AI suggested variable renames: " + ", ".join([f"{k} -> {v}" for k, v in renames.items()])
+            msg = "AI suggested variable renames: " + ", ".join(
+                [f"{k} -> {v}" for k, v in renames.items()]
+            )
             issues.append(
                 CodeIssue(
                     category=IssueCategory.MAINTAINABILITY,
@@ -448,7 +456,7 @@ class CodeSmellAnalyzer(BaseAnalyzer):
                     line_number=1,
                     suggestion="Consider using more descriptive names for improved readability.",
                     rule_id="S009",
-                    metadata={"renames": renames}
+                    metadata={"renames": renames},
                 )
             )
 
@@ -465,20 +473,23 @@ class CodeSmellAnalyzer(BaseAnalyzer):
                     line_number=lines[0] if lines else 1,
                     suggestion=f"Reason: {ext.get('reason')}",
                     rule_id="S010",
-                    metadata={"method_name": ext.get("name"), "lines": lines}
+                    metadata={"method_name": ext.get("name"), "lines": lines},
                 )
             )
 
         return issues
 
-    def _add_ai_explanations(self, issues: List[CodeIssue], source_code: str, file_path: Path) -> None:
+    def _add_ai_explanations(
+        self, issues: List[CodeIssue], source_code: str, file_path: Path
+    ) -> None:
         """Add AI-generated natural language explanations to complex issues."""
         if not hasattr(self, "orchestrator") or not self.orchestrator:
             return
 
         # Only explain high-priority issues to save tokens
         complex_issues = [
-            i for i in issues 
+            i
+            for i in issues
             if i.level in (IssueLevel.WARNING, IssueLevel.ERROR, IssueLevel.CRITICAL)
         ]
 

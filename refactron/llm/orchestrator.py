@@ -1,11 +1,11 @@
-"""Orchestrator for LLM-based refactoring suggestions."""
+from __future__ import annotations
 
 import json
 import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
 from refactron.llm.backend_client import BackendLLMClient
@@ -15,8 +15,8 @@ from refactron.llm.prompts import (
     BATCH_TRIAGE_PROMPT,
     BATCH_TRIAGE_SYSTEM_PROMPT,
     CODE_IMPROVEMENT_PROMPT,
-    DOCUMENTATION_PROMPT,
     DOCSTRING_PROMPT,
+    DOCUMENTATION_PROMPT,
     ISSUE_EXPLANATION_PROMPT,
     SEMANTIC_SIMILARITY_PROMPT,
     SUGGESTION_PROMPT,
@@ -34,7 +34,9 @@ class LLMOrchestrator:
     def __init__(
         self,
         retriever: Optional[ContextRetriever] = None,
-        llm_client: Optional[Union[GroqClient, BackendLLMClient, OpenAIClient, AnthropicClient]] = None,
+        llm_client: Optional[
+            Union[GroqClient, BackendLLMClient, OpenAIClient, AnthropicClient]
+        ] = None,
         safety_gate: Optional[SafetyGate] = None,
     ):
         self.retriever = retriever
@@ -401,7 +403,7 @@ class LLMOrchestrator:
                 prompt=prompt, system=SYSTEM_PROMPT, temperature=0.2
             )
             clean_text = self._clean_json_response(response_text)
-            return json.loads(clean_text, strict=False)
+            return cast(Dict[str, Any], json.loads(clean_text, strict=False))
         except Exception as e:
             logger.error(f"Code improvement suggestion failed: {e}")
             return {"variable_renames": {}, "method_extractions": []}
@@ -422,7 +424,7 @@ class LLMOrchestrator:
                 prompt=prompt, system=SYSTEM_PROMPT, temperature=0.1
             )
             clean_text = self._clean_json_response(response_text)
-            return json.loads(clean_text, strict=False)
+            return cast(Dict[str, Any], json.loads(clean_text, strict=False))
         except Exception as e:
             logger.error(f"Semantic similarity check failed: {e}")
             return {"similarity_score": 0.0, "reasoning": f"Analysis failed: {str(e)}"}
