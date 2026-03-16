@@ -4,7 +4,7 @@ name: Auto-label Bot
 on:
   issues:
     types: [opened, edited]
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize]
 
 permissions:
@@ -116,7 +116,7 @@ jobs:
             }
 
   label-pull-requests:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
