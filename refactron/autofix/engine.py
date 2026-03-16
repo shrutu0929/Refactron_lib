@@ -5,9 +5,14 @@ This engine uses AST analysis and pattern matching to apply safe
 automatic fixes without requiring expensive AI APIs.
 """
 
-from typing import Dict
+import time
+from typing import Callable, Dict, List, Optional
 
-from refactron.autofix.models import FixResult, FixRiskLevel
+from refactron.autofix.models import (
+    BatchFixReport,
+    FixResult,
+    FixRiskLevel,
+)
 from refactron.core.models import CodeIssue
 
 
@@ -98,7 +103,7 @@ class AutoFixEngine:
             return FixResult(
                 success=False, reason=f"No fixer available for issue: {issue.rule_id or 'unknown'}"
             )
-
+        assert issue.rule_id is not None
         fixer = self.fixers[issue.rule_id]
 
         # Check risk level
@@ -137,6 +142,130 @@ class AutoFixEngine:
                 results[idx] = FixResult(success=False, reason="No fixer available")
 
         return results
+
+    def fix_batch_with_report(
+        self,
+        issues: List[CodeIssue],
+        code: str,
+        file_path: Optional[str] = None,
+    ) -> BatchFixReport:
+        """Apply fixes to all fixable issues and return a detailed summary report.
+
+        Args:
+            issues: List of CodeIssue objects to attempt to fix
+            code: The original source code string
+            file_path: Optional file path for context (used in stats)
+
+        Returns:
+            BatchFixReport with per-issue results and aggregate stats
+        """
+        report = BatchFixReport()
+        start_time = time.time()
+        current_code = code
+        files_touched = set()
+
+        for idx, issue in enumerate(issues):
+            if not self.can_fix(issue):
+                result = FixResult(success=False, reason="No fixer available")
+                report.stats.skipped += 1
+            else:
+                result = self.fix(issue, current_code, preview=False)
+                if result.success:
+                    report.stats.successful += 1
+                    if result.fixed:
+                        current_code = result.fixed
+                    if file_path:
+                        files_touched.add(file_path)
+                else:
+                    report.stats.failed += 1
+
+            report.stats.total += 1
+            report.results[idx] = result
+
+        report.stats.files_affected = len(files_touched)
+        report.stats.duration_seconds = time.time() - start_time
+        return report
+
+    def fix_interactive(
+        self,
+        issues: List[CodeIssue],
+        code: str,
+        confirm_callback: Optional[Callable[[int, str, str], bool]] = None,
+    ) -> BatchFixReport:
+        """Preview each fix as a diff and optionally apply based on user confirmation.
+
+        Args:
+            issues: List of CodeIssue objects to attempt to fix
+            code: The original source code string
+            confirm_callback: Optional callable(issue_idx, diff, reason) -> bool.
+                If None, all previews are collected but NOT applied (dry-run mode).
+
+        Returns:
+            BatchFixReport with pending_diffs list for user review and any applied results
+        """
+        report = BatchFixReport()
+        start_time = time.time()
+        current_code = code
+
+        for idx, issue in enumerate(issues):
+            if not self.can_fix(issue):
+                result = FixResult(success=False, reason="No fixer available")
+                report.stats.skipped += 1
+                report.results[idx] = result
+                report.stats.total += 1
+                continue
+
+            # Always preview first to generate the diff
+            preview_result = self.fix(issue, current_code, preview=True)
+
+            if not preview_result.success or not preview_result.diff:
+                report.stats.failed += 1
+                report.results[idx] = preview_result
+                report.stats.total += 1
+                continue
+
+            # Store diff for user review regardless of confirmation
+            diff_entry = {
+                "index": idx,
+                "issue": issue.message,
+                "rule_id": issue.rule_id,
+                "line": issue.line_number,
+                "reason": preview_result.reason,
+                "diff": preview_result.diff,
+                "risk_score": preview_result.risk_score,
+            }
+            report.pending_diffs.append(diff_entry)
+
+            # Apply if confirmed
+            approved = (
+                confirm_callback(idx, preview_result.diff, preview_result.reason)
+                if confirm_callback
+                else False
+            )
+
+            if approved:
+                apply_result = self.fix(issue, current_code, preview=False)
+                if apply_result.success and apply_result.fixed:
+                    current_code = apply_result.fixed
+                    report.stats.successful += 1
+                    report.results[idx] = apply_result
+                else:
+                    report.stats.failed += 1
+                    report.results[idx] = apply_result
+            else:
+                # Not applied — treat as skipped for stats
+                report.stats.skipped += 1
+                report.results[idx] = FixResult(
+                    success=False,
+                    reason="Pending user confirmation",
+                    diff=preview_result.diff,
+                    original=preview_result.original,
+                )
+
+            report.stats.total += 1
+
+        report.stats.duration_seconds = time.time() - start_time
+        return report
 
 
 class BaseFixer:

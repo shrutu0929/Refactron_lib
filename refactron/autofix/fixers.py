@@ -712,7 +712,9 @@ class RemovePrintStatementsFixer(BaseFixer):
 
         if fixed == code:
             return FixResult(
-                success=False, reason="No print statements found", risk_score=self.risk_score
+                success=False,
+                reason="No print statements found",
+                risk_score=self.risk_score,
             )
 
         return FixResult(
