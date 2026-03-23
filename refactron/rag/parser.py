@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import platform
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -59,26 +61,49 @@ class CodeParser:
                 "Install with: pip install tree-sitter tree-sitter-python"
             )
 
-        # Initialize Python language - handle different tree-sitter API versions
+        language = CodeParser._get_language()
+        self.parser = CodeParser._build_parser(language)
+
+    @staticmethod
+    def _tree_sitter_minor_version() -> int:
+        """Return the minor version of the installed tree-sitter package."""
+        try:
+            from importlib.metadata import version as pkg_version
+
+            ver = pkg_version("tree-sitter")
+            return int(ver.split(".")[1])
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _get_language() -> "Language":
+        """Build a tree-sitter Language object for Python.
+
+        Handles API differences across tree-sitter / tree-sitter-python
+        versions (0.20.x through 0.23+).
+        """
         lang = tspython.language()
 
-        # In some versions, tspython.language() already returns a Language object
+        # 0.22+ / newer: tspython.language() already returns a Language object
         if isinstance(lang, Language):
             return lang
 
-        minor = CodeParser._tree_sitter_minor_version()
-
-        # ── 0.21.x: tspython.language() returns a raw int C pointer ─────────
-        # Language.__init__(self, ptr: int, name: str) is the 0.21 signature.
+        # 0.21.x: tspython.language() returns a raw int (C pointer)
         if isinstance(lang, int):
-            return Language(lang, "python")
+            try:
+                return Language(lang, "python")
+            except TypeError:
+                pass
 
-        # ── 0.22 and newer: tspython.language() returns a PyCapsule ─────────
+        # 0.22+ with PyCapsule
+        minor = CodeParser._tree_sitter_minor_version()
         if minor >= 22:
-            return Language(lang)
+            try:
+                return Language(lang)
+            except TypeError:
+                pass
 
-        # ── 0.20.x ──────────────────────────────────────────────────────────
-        # Language() requires the path to the compiled shared library
+        # 0.20.x fallback: find the compiled shared library on disk
         pkg_dir = os.path.dirname(tspython.__file__)
         system = platform.system()
         ext = ".dll" if system == "Windows" else (".dylib" if system == "Darwin" else ".so")
@@ -87,23 +112,14 @@ class CodeParser:
             if fname.endswith(ext):
                 lib_path = os.path.join(pkg_dir, fname)
                 try:
-                    PY_LANGUAGE = Language(lang, "python")
-                except TypeError:
-                    # Try using the path to the compiled library (for very old or CI bindings)
-                    try:
-                        import os
-                        import platform
+                    return Language(lib_path, "python")
+                except Exception:
+                    continue
 
-                        pkg_dir = os.path.dirname(tspython.__file__)
-
-                        # Find the correct shared library extension
-                        system = platform.system()
-                        if system == "Windows":
-                            ext = ".dll"
-                        elif system == "Darwin":
-                            ext = ".dylib"
-                        else:
-                            ext = ".so"
+        raise RuntimeError(
+            "Could not initialise tree-sitter Python language. "
+            "Try: pip install --upgrade tree-sitter tree-sitter-python"
+        )
 
     @staticmethod
     def _parser_works(parser: "Parser") -> bool:
