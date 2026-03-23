@@ -5,7 +5,29 @@ from pathlib import Path
 
 import pytest
 
-from refactron.rag.parser import CodeParser, ParsedClass, ParsedFile, ParsedFunction
+from refactron.rag.parser import (
+    TREE_SITTER_AVAILABLE,
+    CodeParser,
+    ParsedClass,
+    ParsedFile,
+    ParsedFunction,
+)
+
+
+def _tree_sitter_usable() -> bool:
+    if not TREE_SITTER_AVAILABLE:
+        return False
+    try:
+        CodeParser()
+        return True
+    except Exception:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _tree_sitter_usable(),
+    reason="tree-sitter is not available or cannot be initialised in this environment",
+)
 
 
 class TestCodeParser:

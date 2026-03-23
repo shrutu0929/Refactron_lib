@@ -69,7 +69,15 @@ class CodeParser:
         """Return the minor version of the installed tree-sitter package."""
         import tree_sitter
 
-        version = getattr(tree_sitter, "__version__", "0.20.0")
+        # Prefer __version__ attr; fall back to importlib.metadata.
+        version = getattr(tree_sitter, "__version__", None)
+        if version is None:
+            try:
+                from importlib.metadata import version as _pkg_version
+
+                version = _pkg_version("tree-sitter")
+            except Exception:
+                version = "0.20.0"
         parts = str(version).split(".")
         if len(parts) < 2:
             return 20
@@ -80,29 +88,32 @@ class CodeParser:
 
     @staticmethod
     def _build_language() -> "Language":
-        """Build a ``Language`` for Python across tree-sitter / binding versions."""
+        """Build a tree-sitter ``Language`` for Python.
+
+        Exhaustively probes every constructor signature known across
+        tree-sitter 0.20 – 0.23 so the parser works regardless of which
+        exact version is installed in CI or a user's environment.
+        """
         lang = tspython.language()
 
+        # ── already a Language object (some 0.22+ binding builds) ──────────
         if isinstance(lang, Language):
             return lang
 
-        minor = CodeParser._tree_sitter_minor_version()
+        # ── probe 1: Language(ptr_or_capsule, "python")  (0.20 / 0.21) ────
+        try:
+            return Language(lang, "python")
+        except Exception:
+            pass
 
-        # 0.21.x: tspython.language() may return a raw int (C pointer).
-        if isinstance(lang, int):
-            try:
-                return Language(lang, "python")
-            except TypeError:
-                pass
+        # ── probe 2: Language(ptr_or_capsule)  (0.22+) ──────────────────────
+        try:
+            return Language(lang)
+        except Exception:
+            pass
 
-        # 0.22+: PyCapsule — single-argument Language constructor.
-        if minor >= 22:
-            try:
-                return Language(lang)
-            except TypeError:
-                pass
-
-        # 0.20.x: Language needs path to the compiled grammar shared library.
+        # ── probe 3: scan tspython package dir for a compiled grammar .so ──
+        #    (needed on 0.20.x when Language() requires a .so path)
         pkg_dir = os.path.dirname(tspython.__file__)
         system = platform.system()
         ext = ".dll" if system == "Windows" else (".dylib" if system == "Darwin" else ".so")
@@ -112,75 +123,70 @@ class CodeParser:
                 lib_path = os.path.join(pkg_dir, fname)
                 try:
                     return Language(lib_path, "python")
-                except (TypeError, OSError, ValueError):
+                except Exception:
                     continue
 
-        # Fallbacks for unusual binding combinations.
-        try:
-            return Language(lang, "python")
-        except TypeError:
-            pass
-        try:
-            return Language(lang)
-        except TypeError:
-            pass
-
         raise RuntimeError(
-            "Could not construct tree-sitter Language for Python. "
-            "Try: pip install --upgrade tree-sitter tree-sitter-python"
+            "Could not construct tree-sitter Language for Python "
+            f"(tree-sitter minor version: {CodeParser._tree_sitter_minor_version()}). "
+            "Try: pip install --upgrade 'tree-sitter>=0.21.3,<0.22' "
+            "'tree-sitter-python>=0.21.0,<0.22'"
         )
 
     @staticmethod
     def _parser_works(parser: "Parser") -> bool:
         """Return True if the parser can successfully parse trivial Python code.
 
-        On tree-sitter 0.21.x, ``parse()`` raises ``ValueError`` for a parser
-        that has no language set; on 0.22+ it returns ``None``.  We handle both.
+        tree-sitter 0.21.x raises ``ValueError`` when no language is set;
+        0.22+ returns ``None``.  Both are handled here.
         """
         try:
             result = parser.parse(b"x = 1")
             return result is not None
-        except (ValueError, RuntimeError):
+        except Exception:
             return False
 
     @staticmethod
     def _build_parser(language: "Language") -> "Parser":
-        """Construct a tree-sitter Parser compatible with the installed API version.
+        """Construct a tree-sitter Parser for the given Language.
 
-        API history:
-        - 0.20.x  ``Parser()`` then ``parser.set_language(language)``
-        - 0.21.x  ``Parser()`` then ``parser.set_language(language)``
-          (``Parser(language)`` raises ``TypeError`` — no positional args)
-        - 0.22+   ``Parser(language)`` — language passed to constructor directly
-
-        On 0.21.x ``parser.parse()`` raises ``ValueError`` instead of returning
-        ``None`` when called on a parser with no language set, so both behaviours
-        are handled in ``_parser_works()``.
+        Tries every constructor / configuration pattern known across
+        tree-sitter 0.20 – 0.23:
+        - 0.22+   ``Parser(language)``
+        - 0.20/21 ``Parser()`` then ``parser.set_language(language)``
+        - fallback ``parser.language = language`` (some patched builds)
         """
-        minor = CodeParser._tree_sitter_minor_version()
-
-        # 0.22+ accepts Language in the constructor
-        if minor >= 22:
-            try:
-                parser = Parser(language)
-                if CodeParser._parser_works(parser):
-                    return parser
-            except TypeError:
-                pass  # unexpected; fall through to set_language path
-
-        # 0.20.x and 0.21.x: no-arg constructor + set_language()
+        # ── probe 1: new-style constructor (0.22+) ───────────────────────────
         try:
-            parser = Parser()
-            parser.set_language(language)
-            if CodeParser._parser_works(parser):
-                return parser
-        except (TypeError, AttributeError):
+            p = Parser(language)
+            if CodeParser._parser_works(p):
+                return p
+        except Exception:
+            pass
+
+        # ── probe 2: no-arg constructor + set_language() (0.20 / 0.21) ──────
+        try:
+            p = Parser()
+            p.set_language(language)
+            if CodeParser._parser_works(p):
+                return p
+        except Exception:
+            pass
+
+        # ── probe 3: attribute assignment fallback ───────────────────────────
+        try:
+            p = Parser()
+            p.language = language  # type: ignore[attr-defined]
+            if CodeParser._parser_works(p):
+                return p
+        except Exception:
             pass
 
         raise RuntimeError(
             f"tree-sitter Parser could not be initialised "
             f"(tree-sitter minor version: {CodeParser._tree_sitter_minor_version()}). "
-            "Try: pip install --upgrade tree-sitter tree-sitter-python"
+            "Try: pip install --upgrade 'tree-sitter>=0.21.3,<0.22' "
+            "'tree-sitter-python>=0.21.0,<0.22'"
         )
 
     def parse_file(self, file_path: Path) -> ParsedFile:
