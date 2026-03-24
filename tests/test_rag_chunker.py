@@ -15,7 +15,7 @@ def _tree_sitter_usable() -> bool:
     try:
         CodeParser()
         return True
-    except Exception:
+    except RuntimeError:
         return False
 
 
