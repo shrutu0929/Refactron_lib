@@ -2,13 +2,11 @@
 Tests for cli/refactor.py – covers refactor, autofix, rollback, document commands.
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
-from refactron.autofix.models import FixRiskLevel
 from refactron.cli.refactor import autofix, document, refactor, rollback
 
 

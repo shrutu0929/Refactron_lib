@@ -1,9 +1,8 @@
 """Tests for core/memory_profiler.py, core/cache.py, core/repositories.py"""
 
 import json
-import pickle
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -328,9 +327,6 @@ class TestListRepositories:
                 list_repositories("https://api.test")
 
     def test_success_list_response(self):
-        import io
-        from urllib.response import addinfourl
-
         from refactron.core.repositories import list_repositories
 
         creds = MagicMock()

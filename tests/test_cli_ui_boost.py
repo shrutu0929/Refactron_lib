@@ -2,14 +2,10 @@
 Tests for cli/ui.py – shared UI helper functions.
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import click
 import pytest
-from click.testing import CliRunner
 
-# Import helpers under test
 from refactron.cli.ui import (
     _auth_banner,
     _collect_feedback_interactive,
@@ -25,8 +21,6 @@ from refactron.cli.ui import (
     _print_refactor_messages,
     _print_status_messages,
     _record_applied_operations,
-    _run_minimal_loop,
-    _run_startup_animation,
     console,
 )
 

@@ -422,7 +422,6 @@ class TestPRIntegration:
 
     def test_generate_inline_comments(self):
         from refactron.cicd.pr_integration import PRIntegration
-        from refactron.core.models import IssueLevel
 
         result = MagicMock()
         issue = MagicMock()

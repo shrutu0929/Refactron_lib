@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
-from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
+from refactron.llm.models import SuggestionStatus
 from refactron.llm.orchestrator import LLMOrchestrator
 
 
@@ -69,7 +69,7 @@ class TestGenerateSuggestion:
             MagicMock(content="context", file_path="ctx.py")
         ]
         orch.retriever = mock_retriever
-        result = orch.generate_suggestion(make_issue(), "x = 0")
+        orch.generate_suggestion(make_issue(), "x = 0")
         mock_retriever.retrieve_similar.assert_called_once()
 
     def test_retriever_exception_handled(self):

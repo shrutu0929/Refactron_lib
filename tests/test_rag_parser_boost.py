@@ -1,6 +1,5 @@
 """Tests for rag/parser.py – CodeParser and data classes."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +15,7 @@ class TestParsedDataclasses:
         assert f.name == "foo"
 
     def test_parsed_class_fields(self):
-        from refactron.rag.parser import ParsedClass, ParsedFunction
+        from refactron.rag.parser import ParsedClass
 
         c = ParsedClass(
             name="MyClass",
@@ -43,8 +42,6 @@ class TestParsedDataclasses:
 class TestCodeParserUnavailable:
     def test_raises_when_tree_sitter_unavailable(self):
         with patch("refactron.rag.parser.TREE_SITTER_AVAILABLE", False):
-            from importlib import reload
-
             import refactron.rag.parser as parser_mod
 
             with patch.object(parser_mod, "TREE_SITTER_AVAILABLE", False):
@@ -143,8 +140,6 @@ class TestCodeParserAvailable:
 class TestCodeParserTreeSitterVersion:
     def test_minor_version_fallback(self):
         with patch("refactron.rag.parser.TREE_SITTER_AVAILABLE", True):
-            import tree_sitter
-
             # Just test it doesn't raise
             from refactron.rag.parser import CodeParser
 

@@ -5,7 +5,7 @@ Tests for refactron/cli/utils.py and refactron/llm/orchestrator.py
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -102,11 +102,7 @@ class TestValidateApiKey:
 
 class TestSetupLogging:
     def test_setup_verbose(self):
-        import logging
-
         _setup_logging(verbose=True)
-        import logging
-
         # verbose mode should not suppress httpx
         assert True  # verbose mode does not suppress httpx
 
@@ -216,7 +212,10 @@ def make_issue(line=1):
 class TestLLMOrchestrator:
     def _make_orchestrator(
         self,
-        response_text='{"proposed_code": "x = 1", "explanation": "test", "reasoning": "ok", "confidence": 0.9}',
+        response_text=(
+            '{"proposed_code": "x = 1", "explanation": "test",'
+            ' "reasoning": "ok", "confidence": 0.9}'
+        ),
     ):
         mock_client = MagicMock()
         mock_client.model = "test-model"
@@ -225,7 +224,8 @@ class TestLLMOrchestrator:
 
     def test_generate_suggestion_success(self):
         orchestrator, _ = self._make_orchestrator(
-            '{"proposed_code": "x = 1", "explanation": "fixed it", "reasoning": "clean", "confidence": 0.95}'
+            '{"proposed_code": "x = 1", "explanation": "fixed it",'
+            ' "reasoning": "clean", "confidence": 0.95}'
         )
         issue = make_issue()
         result = orchestrator.generate_suggestion(issue, "x = 42")
@@ -236,7 +236,10 @@ class TestLLMOrchestrator:
         mock_client = MagicMock()
         mock_client.model = "test-model"
         mock_client.generate = MagicMock(
-            return_value='{"proposed_code": "x = 1", "explanation": "ok", "reasoning": "fine", "confidence": 0.9}'
+            return_value=(
+                '{"proposed_code": "x = 1", "explanation": "ok",'
+                ' "reasoning": "fine", "confidence": 0.9}'
+            )
         )
         mock_retriever = MagicMock()
         mock_result = MagicMock()
@@ -253,7 +256,10 @@ class TestLLMOrchestrator:
         mock_client = MagicMock()
         mock_client.model = "test-model"
         mock_client.generate = MagicMock(
-            return_value='{"proposed_code": "x=1", "explanation": "ok", "reasoning": "ok", "confidence": 0.9}'
+            return_value=(
+                '{"proposed_code": "x=1", "explanation": "ok",'
+                ' "reasoning": "ok", "confidence": 0.9}'
+            )
         )
         mock_retriever = MagicMock()
         mock_retriever.retrieve_similar = MagicMock(side_effect=RuntimeError("index unavailable"))

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
+from refactron.llm.models import RefactoringSuggestion
 from refactron.llm.safety import SafetyGate
 
 
@@ -70,7 +70,10 @@ class TestAssessRisk:
         assert self.gate._assess_risk("x = 1") == 0.0
 
     def test_max_risk_capped_at_1(self):
-        code = "subprocess.run(); os.system(); eval(); exec(); shutil.rmtree(); requests.get(); urllib.open('x'); open('f')"
+        code = (
+            "subprocess.run(); os.system(); eval(); exec();"
+            " shutil.rmtree(); requests.get(); urllib.open('x'); open('f')"
+        )
         assert self.gate._assess_risk(code) <= 1.0
 
     def test_single_risky_keyword(self):

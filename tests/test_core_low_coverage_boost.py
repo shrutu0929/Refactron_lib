@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from refactron.core import device_auth, repositories, workspace
+from refactron.core import device_auth, repositories
 from refactron.core.credentials import RefactronCredentials
 from refactron.core.device_auth import DeviceAuthorization
 from refactron.core.workspace import WorkspaceManager, WorkspaceMapping

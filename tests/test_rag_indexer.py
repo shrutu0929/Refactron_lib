@@ -3,9 +3,8 @@ Tests for rag/indexer.py – comprehensive coverage via mocking ChromaDB / sente
 """
 
 import json
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -231,7 +230,7 @@ class TestIndexRepository:
         indexer = make_indexer(tmp_path)
         indexer.llm_client = None
         # No files → summarize path never reached for real files
-        with patch("refactron.rag.indexer.GroqClient", MagicMock()) as mock_groq:
+        with patch("refactron.rag.indexer.GroqClient", MagicMock()):
             stats = indexer.index_repository(tmp_path, summarize=True)
         assert stats.total_files == 0
 

@@ -3,7 +3,6 @@ Tests for cli/analysis.py - covers analyze, report, metrics, serve_metrics, sugg
 All LLM/network/file-system I/O is mocked.
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

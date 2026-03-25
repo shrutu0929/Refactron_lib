@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import libcst as cst
-import pytest
 
 from refactron.core.analysis_result import FileAnalysisError
 from refactron.core.cache import ASTCache

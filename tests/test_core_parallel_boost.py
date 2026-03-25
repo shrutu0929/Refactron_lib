@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from refactron.core.analysis_result import FileAnalysisError
 from refactron.core.models import FileMetrics
 from refactron.core.parallel import ParallelProcessor
