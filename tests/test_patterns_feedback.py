@@ -358,10 +358,18 @@ class TestProjectRootDetection:
             root = refactron.detect_project_root(test_file)
             assert root.resolve() == project_dir.resolve()
 
-    def test_detect_project_root_fallback(self):
-        """Test that project root detection falls back to file parent."""
+    def test_detect_project_root_fallback(self, monkeypatch):
+        """Test that project root detection falls back to file parent.
+
+        The real filesystem walk can find a pyproject.toml / .git in an
+        ancestor directory (e.g. the developer's home or the repo root).
+        Patch ``Path.exists`` so that no marker is ever found, forcing the
+        fallback path to activate regardless of where tmp lives.
+        """
         config = RefactronConfig()
         refactron = Refactron(config)
+
+        monkeypatch.setattr(Path, "exists", lambda self: False)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = Path(tmpdir) / "test.py"
@@ -377,7 +385,7 @@ class TestFeedbackCLIIntegration:
         """Test that --apply automatically records feedback."""
         from click.testing import CliRunner
 
-        from refactron.cli import refactor
+        from refactron.cli.refactor import refactor
 
         runner = CliRunner()
 
@@ -412,7 +420,7 @@ def calculate(price):
         """Test that feedback command exists and works."""
         from click.testing import CliRunner
 
-        from refactron.cli import main
+        from refactron.cli.main import main
 
         runner = CliRunner()
         result = runner.invoke(main, ["--help"])
@@ -424,7 +432,7 @@ def calculate(price):
         """Test that feedback command records feedback correctly."""
         from click.testing import CliRunner
 
-        from refactron.cli import feedback
+        from refactron.cli.cicd import feedback
 
         runner = CliRunner()
 
