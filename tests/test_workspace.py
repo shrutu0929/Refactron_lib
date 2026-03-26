@@ -72,7 +72,7 @@ def test_get_workspace_by_path(manager, tmp_path):
     """Test retrieving workspace by local path."""
     local_dir = tmp_path / "app"
     local_dir.mkdir()
-    
+
     mapping = WorkspaceMapping(
         repo_id=1,
         repo_name="app",
@@ -88,15 +88,15 @@ def test_get_workspace_by_path(manager, tmp_path):
 
 def test_list_and_remove_workspace(manager):
     """Test listing and removing workspaces."""
-    m1 = WorkspaceMapping(1, "a", "u/a", "/p1", "t")
-    m2 = WorkspaceMapping(2, "b", "u/b", "/p2", "t")
-    
+    m1 = WorkspaceMapping(repo_id=1, repo_name="a", repo_full_name="u/a", local_path="/p1", connected_at="t")
+    m2 = WorkspaceMapping(repo_id=2, repo_name="b", repo_full_name="u/b", local_path="/p2", connected_at="t")
+
     manager.add_workspace(m1)
     manager.add_workspace(m2)
-    
+
     workspaces = manager.list_workspaces()
     assert len(workspaces) == 2
-    
+
     assert manager.remove_workspace("u/a") is True
     assert manager.remove_workspace("non-existent") is False
     assert len(manager.list_workspaces()) == 1
@@ -109,14 +109,14 @@ def test_detect_repository_https(mock_cwd, tmp_path):
     repo_dir.mkdir()
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
-    
+
     config_content = """
 [remote "origin"]
     url = https://github.com/user/my-repo.git
     fetch = +refs/heads/*:refs/remotes/origin/*
 """
     (git_dir / "config").write_text(config_content)
-    
+
     manager = WorkspaceManager()
     repo = manager.detect_repository(repo_dir)
     assert repo == "user/my-repo"
@@ -129,13 +129,13 @@ def test_detect_repository_ssh(mock_cwd, tmp_path):
     repo_dir.mkdir()
     git_dir = repo_dir / ".git"
     git_dir.mkdir()
-    
+
     config_content = """
 [remote "origin"]
     url = git@github.com:org/ssh-repo.git
 """
     (git_dir / "config").write_text(config_content)
-    
+
     manager = WorkspaceManager()
     repo = manager.detect_repository(repo_dir)
     assert repo == "org/ssh-repo"

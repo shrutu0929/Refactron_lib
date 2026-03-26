@@ -50,11 +50,6 @@ class WorkspaceMapping:
             repo_full_name=repo_full_name,
             local_path=data.get("local_path", ""),
             connected_at=data.get("connected_at", ""),
-            repo_name=data["repo_name"],
-            repo_full_name=data["repo_full_name"],
-            local_path=data["local_path"],
-            connected_at=data["connected_at"],
-            repo_id=data.get("repo_id"),
         )
 
 

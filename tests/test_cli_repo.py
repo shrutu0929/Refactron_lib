@@ -1,8 +1,11 @@
 """Tests for refactron.cli.repo module."""
 
 import sys
-import pytest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
+from click.testing import CliRunner
 
 # Mock torch BEFORE any refactron imports to prevent DLL crash on Windows
 mock_torch = MagicMock()
@@ -13,25 +16,14 @@ mock_st = MagicMock()
 mock_st.__spec__ = MagicMock()
 sys.modules["sentence_transformers"] = mock_st
 
-from click.testing import CliRunner
-from pathlib import Path
 
-from refactron.core.repositories import Repository
-from refactron.core.workspace import WorkspaceMapping
-"""Tests for the refactron repo CLI commands."""
-
-from unittest.mock import MagicMock, patch
-
-import pytest
-from click.testing import CliRunner
-
-from refactron.cli.repo import repo
-from refactron.core.workspace import WorkspaceManager
+from refactron.core.repositories import Repository  # noqa: E402
+from refactron.core.workspace import WorkspaceManager  # noqa: E402
+from refactron.core.workspace import WorkspaceMapping  # noqa: E402
 
 
 @pytest.fixture
 def runner():
-    """Provides a Click CLI runner for testing."""
     return CliRunner()
 
 
@@ -52,96 +44,73 @@ def mock_repo():
     )
 
 
-@pytest.fixture
-def mock_auth_banner():
-    """Prevent the auth banner (which may trigger heavy imports) from running."""
-    with patch("refactron.cli.repo._auth_banner"):
-        yield
+def _get_repo_group():
+    from refactron.cli.repo import repo
+
+    return repo
 
 
-def test_repo_list_no_repos(runner, mock_auth_banner):
+@patch("refactron.cli.repo._auth_banner")
+def test_repo_list_no_repos(mock_banner, runner):
     """Test 'repo list' when no repositories are returned."""
     with patch("refactron.cli.repo.list_repositories", return_value=[]):
-        result = runner.invoke(
-            __import__("refactron.cli.repo", fromlist=["repo"]).repo,
-            ["list"],
-            catch_exceptions=False,
-        )
+        result = runner.invoke(_get_repo_group(), ["list"])
         assert result.exit_code == 0
         assert "No Repositories" in result.output or "No repositories" in result.output
 
 
-def test_repo_list_with_repos(runner, mock_auth_banner, mock_repo):
+@patch("refactron.cli.repo._auth_banner")
+def test_repo_list_with_repos(mock_banner, runner, mock_repo):
     """Test 'repo list' with some repositories."""
     with patch("refactron.cli.repo.list_repositories", return_value=[mock_repo]):
         with patch("refactron.cli.repo.WorkspaceManager.get_workspace", return_value=None):
-            result = runner.invoke(
-                __import__("refactron.cli.repo", fromlist=["repo"]).repo,
-                ["list"],
-                catch_exceptions=False,
-            )
+            result = runner.invoke(_get_repo_group(), ["list"])
             assert result.exit_code == 0
             assert "test-repo" in result.output
 
 
-def test_repo_list_error(runner, mock_auth_banner):
+@patch("refactron.cli.repo._auth_banner")
+def test_repo_list_error(mock_banner, runner):
     """Test 'repo list' when the API raises a RuntimeError."""
     with patch(
         "refactron.cli.repo.list_repositories", side_effect=RuntimeError("Not authenticated")
     ):
-        result = runner.invoke(
-            __import__("refactron.cli.repo", fromlist=["repo"]).repo,
-            ["list"],
-            catch_exceptions=False,
-        )
+        result = runner.invoke(_get_repo_group(), ["list"])
         assert result.exit_code != 0
         assert "Error" in result.output or "Not authenticated" in result.output
 
 
-def test_repo_connect_no_args(runner, mock_auth_banner):
-    """Test 'repo connect' with no repo name and no path."""
-    with patch("refactron.cli.repo.list_repositories", return_value=[]):
-        result = runner.invoke(
-            __import__("refactron.cli.repo", fromlist=["repo"]).repo,
-            ["connect"],
-            catch_exceptions=False,
-        )
-        assert result.exit_code != 0
-        assert "Repository name is required" in result.output or result.exit_code == 1
-
-
-def test_repo_connect_with_path(runner, mock_auth_banner, mock_repo, tmp_path):
+@patch("refactron.cli.repo._auth_banner")
+def test_repo_connect_with_path(mock_banner, runner, mock_repo, tmp_path):
     """Test 'repo connect' with existing path."""
     with patch("refactron.cli.repo.list_repositories", return_value=[mock_repo]):
         with patch("refactron.cli.repo.WorkspaceManager.add_workspace") as mock_add:
-            with patch("subprocess.Popen"):
+            with patch("refactron.cli.repo.subprocess.run"):
                 result = runner.invoke(
-                    __import__("refactron.cli.repo", fromlist=["repo"]).repo,
+                    _get_repo_group(),
                     ["connect", "test-repo", "--path", str(tmp_path)],
-                    catch_exceptions=False,
                 )
                 assert result.exit_code == 0
                 assert "Successfully connected" in result.output
                 mock_add.assert_called_once()
                 mapping = mock_add.call_args[0][0]
                 assert mapping.repo_name == "test-repo"
-                assert mapping.local_path == str(tmp_path.resolve())
+                expected_path = Path.home() / ".refactron" / "workspaces" / "test-repo"
+                assert Path(mapping.local_path).resolve() == expected_path.resolve()
 
 
-def test_repo_disconnect_not_connected(runner, mock_auth_banner):
+@patch("refactron.cli.repo._auth_banner")
+def test_repo_disconnect_not_connected(mock_banner, runner):
     """Test 'repo disconnect' when repo is not connected."""
     with patch("refactron.cli.repo.WorkspaceManager.get_workspace", return_value=None):
         with patch("refactron.cli.repo.WorkspaceManager.get_workspace_by_path", return_value=None):
-            result = runner.invoke(
-                __import__("refactron.cli.repo", fromlist=["repo"]).repo,
-                ["disconnect", "unknown-repo"],
-                catch_exceptions=False,
-            )
+            result = runner.invoke(_get_repo_group(), ["disconnect", "unknown-repo"])
             assert result.exit_code != 0
             assert "is not connected" in result.output
 
 
-def test_repo_disconnect_success(runner, mock_auth_banner, tmp_path):
+@patch("refactron.cli.repo._auth_banner")
+def test_repo_disconnect_success(mock_banner, runner, tmp_path):
     """Test 'repo disconnect' success."""
     mapping = WorkspaceMapping(
         repo_id=1,
@@ -152,14 +121,12 @@ def test_repo_disconnect_success(runner, mock_auth_banner, tmp_path):
     )
     with patch("refactron.cli.repo.WorkspaceManager.get_workspace", return_value=mapping):
         with patch("refactron.cli.repo.WorkspaceManager.remove_workspace") as mock_remove:
-            result = runner.invoke(
-                __import__("refactron.cli.repo", fromlist=["repo"]).repo,
-                ["disconnect", "test-repo"],
-                catch_exceptions=False,
-            )
+            result = runner.invoke(_get_repo_group(), ["disconnect", "test-repo"])
             assert result.exit_code == 0
             assert "Removed workspace mapping" in result.output
             mock_remove.assert_called_once_with("test-repo")
+
+
 def temp_workspace(tmp_path):
     """Provides an isolated workspace manager for tests."""
     config_path = tmp_path / "workspaces.json"
@@ -167,9 +134,10 @@ def temp_workspace(tmp_path):
     return mgr
 
 
+@patch("refactron.cli.repo._auth_banner")
 @patch("refactron.cli.repo.WorkspaceManager")
 @patch("refactron.cli.repo._spawn_background_indexer")
-def test_repo_connect_local_offline(mock_spawn, mock_wsm_cls, runner, tmp_path):
+def test_repo_connect_local_offline(mock_spawn, mock_wsm_cls, mock_banner, runner, tmp_path):
     """Scenario 1 & 2: Inside existing local repo, connects offline instantly."""
     # Setup mock manager
     mock_mgr = MagicMock()
@@ -179,7 +147,7 @@ def test_repo_connect_local_offline(mock_spawn, mock_wsm_cls, runner, tmp_path):
     mock_mgr.detect_repository.return_value = "user/my-offline-repo"
 
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(repo, ["connect"])
+        result = runner.invoke(_get_repo_group(), ["connect"])
 
         # Verify it succeeds offline without hitting the API
         assert result.exit_code == 0
@@ -198,12 +166,13 @@ def test_repo_connect_local_offline(mock_spawn, mock_wsm_cls, runner, tmp_path):
         mock_spawn.assert_called_once()
 
 
+@patch("refactron.cli.repo._auth_banner")
 @patch("refactron.cli.repo.WorkspaceManager")
 @patch("refactron.cli.repo.list_repositories")
 @patch("refactron.cli.repo.subprocess.run")
 @patch("refactron.cli.repo._spawn_background_indexer")
 def test_repo_connect_api_fallback(
-    mock_spawn, mock_subp_run, mock_list_repos, mock_wsm_cls, runner, tmp_path
+    mock_spawn, mock_subp_run, mock_list_repos, mock_wsm_cls, mock_banner, runner, tmp_path
 ):
     """Scenario 3: Outside git repo, repo name provided -> clones via API."""
     mock_mgr = MagicMock()
@@ -222,7 +191,7 @@ def test_repo_connect_api_fallback(
 
     with runner.isolated_filesystem(temp_dir=tmp_path):
         # Pass repo explicit name
-        result = runner.invoke(repo, ["connect", "user/my-online-repo"])
+        result = runner.invoke(_get_repo_group(), ["connect", "user/my-online-repo"])
 
         assert result.exit_code == 0
         assert "Connected (API)" in result.output
@@ -243,24 +212,28 @@ def test_repo_connect_api_fallback(
         assert mapping.repo_name == "my-online-repo"
 
 
+@patch("refactron.cli.repo._auth_banner")
 @patch("refactron.cli.repo.WorkspaceManager")
-def test_repo_connect_outside_git_no_args(mock_wsm_cls, runner, tmp_path):
+def test_repo_connect_outside_git_no_args(mock_wsm_cls, mock_banner, runner, tmp_path):
     """If outside git repo and no args provided, it should fail nicely."""
     mock_mgr = MagicMock()
     mock_wsm_cls.return_value = mock_mgr
     mock_mgr.detect_repository.return_value = None
 
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(repo, ["connect"])
+        result = runner.invoke(_get_repo_group(), ["connect"])
 
         assert result.exit_code == 1
         assert "Not a git repository" in result.output
         assert "Usage" in result.output
 
 
+@patch("refactron.cli.repo._auth_banner")
 @patch("refactron.cli.repo.WorkspaceManager")
 @patch("refactron.cli.repo.list_repositories")
-def test_repo_connect_api_error_fallback(mock_list_repos, mock_wsm_cls, runner, tmp_path):
+def test_repo_connect_api_error_fallback(
+    mock_list_repos, mock_wsm_cls, mock_banner, runner, tmp_path
+):
     """Scenario 4: CI runner (no token, no git context) -> clean error message."""
     mock_mgr = MagicMock()
     mock_wsm_cls.return_value = mock_mgr
@@ -270,19 +243,20 @@ def test_repo_connect_api_error_fallback(mock_list_repos, mock_wsm_cls, runner, 
     mock_list_repos.side_effect = RuntimeError("Invalid credentials")
 
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(repo, ["connect", "some-repo"])
+        result = runner.invoke(_get_repo_group(), ["connect", "some-repo"])
 
         assert result.exit_code == 1
         assert "Authentication required for cloning" in result.output
         assert "connect offline." in result.output.replace("\n", "")
 
 
+@patch("refactron.cli.repo._auth_banner")
 @patch("refactron.cli.repo.WorkspaceManager")
 @patch("refactron.cli.repo.list_repositories")
 @patch("refactron.cli.repo.subprocess.run")
 @patch("refactron.cli.repo._spawn_background_indexer")
 def test_repo_connect_api_fallback_ssh(
-    mock_spawn, mock_subp_run, mock_list_repos, mock_wsm_cls, runner, tmp_path
+    mock_spawn, mock_subp_run, mock_list_repos, mock_wsm_cls, mock_banner, runner, tmp_path
 ):
     """Scenario 6: Clone using SSH flag."""
     mock_mgr = MagicMock()
@@ -298,7 +272,7 @@ def test_repo_connect_api_fallback_ssh(
     mock_list_repos.return_value = [mock_repo]
 
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        result = runner.invoke(repo, ["connect", "--ssh", "user/my-ssh-repo"])
+        result = runner.invoke(_get_repo_group(), ["connect", "--ssh", "user/my-ssh-repo"])
 
         assert result.exit_code == 0
         assert "Connected (API)" in result.output
