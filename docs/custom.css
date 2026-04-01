@@ -1,0 +1,48 @@
+/* ============================================
+   Refactron Docs — Sidebar Typography
+   ============================================ */
+
+/* ── Sidebar navigation group titles ──────────
+   Targets: Getting Started, Essentials, Guides,
+   CLI Reference, API Reference, Advanced, Resources
+   ──────────────────────────────────────────── */
+
+/* Mintlify palm — group label (p tag above nav list) */
+nav p,
+aside p,
+[data-sidebar] p,
+.sidebar p {
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  margin-bottom: 0.35rem !important;
+}
+
+/* ── Sidebar nav item links ───────────────────
+   Slightly larger than default, medium weight
+   ──────────────────────────────────────────── */
+nav a,
+aside a,
+[data-sidebar] a,
+.sidebar a {
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em !important;
+}
+
+/* Active nav item — make it stand out clearly */
+nav a[aria-current="page"],
+nav a[data-active="true"],
+nav a[class*="active"] {
+  font-weight: 700 !important;
+  color: #ffffff !important;
+}
+
+/* ── Global base font size bump ──────────────
+   Pulls everything up from the default 0.8125rem
+   ──────────────────────────────────────────── */
+body {
+  font-size: 15px !important;
+}

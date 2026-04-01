@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 780" width="1400" height="780">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@800&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1400" height="780" fill="#0a0a0a"/>
+
+  <!-- Headline line 1 -->
+  <text
+    x="700" y="195"
+    text-anchor="middle"
+    font-family="'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="88"
+    font-weight="800"
+    fill="#cccccc"
+    letter-spacing="-1"
+  >Refactor Code.</text>
+
+  <!-- Headline line 2 -->
+  <text
+    x="700" y="300"
+    text-anchor="middle"
+    font-family="'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="88"
+    font-weight="800"
+    fill="#cccccc"
+    letter-spacing="-1"
+  >Verify It&#x2019;s Safe.</text>
+
+  <!-- Headline line 3 — faded -->
+  <text
+    x="700" y="410"
+    text-anchor="middle"
+    font-family="'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif"
+    font-size="88"
+    font-weight="800"
+    fill="#404040"
+    letter-spacing="-1"
+  >Ship With Confidence.</text>
+
+  <!-- Subtitle -->
+  <text x="700" y="487" text-anchor="middle" font-family="'Space Grotesk', -apple-system, sans-serif" font-size="18" fill="#606060">
+    Refactron safely refactors and modernizes legacy code
+  </text>
+  <text x="700" y="513" text-anchor="middle" font-family="'Space Grotesk', -apple-system, sans-serif" font-size="18" fill="#606060">
+    with behavior-preserving refactoring
+  </text>
+  <text x="700" y="539" text-anchor="middle" font-family="'Space Grotesk', -apple-system, sans-serif" font-size="18" fill="#606060">
+    and deterministic verification.
+  </text>
+
+  <!-- Pill background -->
+  <rect x="488" y="585" width="424" height="62" rx="14" fill="#111111" stroke="#272727" stroke-width="1.5"/>
+
+  <!-- Pill text -->
+  <text
+    x="700" y="623"
+    text-anchor="middle"
+    font-family="'Courier New', Courier, monospace"
+    font-size="18"
+    fill="#aaaaaa"
+  ><tspan fill="#555555">$ </tspan>pip install refactron</text>
+</svg>

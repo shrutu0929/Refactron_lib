@@ -32,6 +32,36 @@ refactron refactor myfile.py
 ## Available Refactorers
 
 <AccordionGroup>
+  <Accordion title="Extract Method">
+    Extracts a logically distinct block of statements from a long function into a new named function, reducing function length and improving readability
+
+    ```python
+    # Before
+    def process_order(order):
+        if not order.items:
+            raise ValueError("Empty order")
+        if order.total < 0:
+            raise ValueError("Negative total")
+        tax = order.total * 0.18
+        return order.total + tax
+
+    # After
+    def _validate_order(order):
+        if not order.items:
+            raise ValueError("Empty order")
+        if order.total < 0:
+            raise ValueError("Negative total")
+
+    def _compute_total_with_tax(order):
+        TAX_RATE = 0.18
+        return order.total + order.total * TAX_RATE
+
+    def process_order(order):
+        _validate_order(order)
+        return _compute_total_with_tax(order)
+    ```
+  </Accordion>
+
   <Accordion title="Extract Constant">
     Replaces magic numbers with named constants
 
@@ -264,6 +294,7 @@ Configure refactoring behavior in `.refactron.yaml`:
 ```yaml .refactron.yaml
 # Enable specific refactorers
 enabled_refactorers:
+  - extract_method
   - extract_constant
   - add_docstring
   - simplify_conditionals
