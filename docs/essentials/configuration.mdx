@@ -24,15 +24,17 @@ This creates `.refactron.yaml` in your project root.
 ```yaml .refactron.yaml
 # Analyzers to run
 enabled_analyzers:
+  - security
+  - performance
   - complexity
   - code_smell
-  - security
   - type_hint
   - dead_code
   - dependency
 
 # Refactorers to use
 enabled_refactorers:
+  - extract_method
   - extract_constant
   - add_docstring
   - simplify_conditionals
@@ -68,6 +70,10 @@ pattern_storage_dir: null  # null = auto-detect
     Detects security vulnerabilities like SQL injection, code injection, hardcoded secrets, and SSRF
   </Accordion>
 
+  <Accordion icon="bolt" title="performance">
+    Detects runtime performance antipatterns: N+1 queries, inefficient list operations, unnecessary iterations, inefficient string concatenation, and redundant `list()` calls
+  </Accordion>
+
   <Accordion icon="code" title="code_smell">
     Identifies magic numbers, long functions, excessive parameters, and deep nesting
   </Accordion>
@@ -92,6 +98,10 @@ pattern_storage_dir: null  # null = auto-detect
 ## Available Refactorers
 
 <AccordionGroup>
+  <Accordion title="extract_method">
+    Extract long or logically distinct code blocks from complex functions into separate named functions
+  </Accordion>
+
   <Accordion title="extract_constant">
     Extract magic numbers into named constants
   </Accordion>
