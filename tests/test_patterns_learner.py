@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -10,6 +11,18 @@ from refactron.patterns.fingerprint import PatternFingerprinter
 from refactron.patterns.learner import PatternLearner
 from refactron.patterns.models import RefactoringFeedback
 from refactron.patterns.storage import PatternStorage
+
+
+def make_learner():
+
+    from unittest.mock import MagicMock
+
+    from refactron.patterns.learner import PatternLearner
+
+    storage = MagicMock()
+    fingerprinter = MagicMock()
+    learner = PatternLearner(storage=storage, fingerprinter=fingerprinter)
+    return learner, storage, fingerprinter
 
 
 class IsolatedStorage:
@@ -392,3 +405,55 @@ class TestPatternLearner:
 
             with pytest.raises(ValueError, match="after_metrics cannot be None"):
                 learner.update_pattern_metrics("pattern-id", metrics, None)
+
+
+# ─────────────── Patterns Learner (boost) ───────────────
+
+
+class TestPatternLearnerInit:
+    def test_raises_on_none_storage(self):
+
+        with pytest.raises(ValueError, match="PatternStorage cannot be None"):
+            PatternLearner(storage=None, fingerprinter=MagicMock())
+
+    def test_raises_on_none_fingerprinter(self):
+
+        with pytest.raises(ValueError, match="PatternFingerprinter cannot be None"):
+            PatternLearner(storage=MagicMock(), fingerprinter=None)
+
+
+class TestUpdatePatternMetrics:
+    def test_empty_pattern_id_raises(self):
+        learner, _, _ = make_learner()
+        with pytest.raises(ValueError, match="pattern_id cannot be empty"):
+            learner.update_pattern_metrics("", MagicMock(), MagicMock())
+
+    def test_none_before_metrics_raises(self):
+        learner, _, _ = make_learner()
+        with pytest.raises(ValueError, match="before_metrics cannot be None"):
+            learner.update_pattern_metrics("p1", None, MagicMock())
+
+    def test_none_after_metrics_raises(self):
+        learner, _, _ = make_learner()
+        with pytest.raises(ValueError, match="after_metrics cannot be None"):
+            learner.update_pattern_metrics("p1", MagicMock(), None)
+
+    def test_pattern_not_found_returns_silently(self):
+        learner, storage, _ = make_learner()
+        storage.get_pattern.return_value = None
+        learner.update_pattern_metrics("missing", MagicMock(), MagicMock())
+
+    def test_creates_new_metric_when_none(self):
+        learner, storage, _ = make_learner()
+        pattern = MagicMock()
+        storage.get_pattern.return_value = pattern
+        storage.get_pattern_metric.return_value = None
+        before = MagicMock(
+            complexity=5, maintainability_index=50.0, lines_of_code=100, issue_count=3
+        )
+        after = MagicMock(complexity=3, maintainability_index=65.0, lines_of_code=90, issue_count=1)
+        learner.update_pattern_metrics("p1", before, after)
+        storage.save_pattern_metric.assert_called_once()
+
+
+# ──────────────────────────── QualityGate ─────────────────────────────────────

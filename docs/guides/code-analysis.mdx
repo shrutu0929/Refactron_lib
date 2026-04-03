@@ -145,6 +145,25 @@ for issue in analysis.issues:
     import deprecated_lib  # Deprecated
     ```
   </Accordion>
+
+  <Accordion icon="bolt" title="Performance Analysis">
+    Detects runtime performance antipatterns:
+    - **N+1 Queries**: Repeated database or ORM queries inside loops
+    - **Inefficient List Operations**: `list()` wrapping comprehensions, redundant iterations
+    - **Inefficient String Concatenation**: `+=` string building inside loops (use `join` instead)
+    - **Unnecessary Iterations**: Patterns that can be replaced with comprehensions or built-ins
+    - **Redundant `list()` Calls**: Wrapping a list comprehension in `list()`
+
+    ```python
+    # ❌ Performance issues detected
+    for user in users:
+        profile = db.query(Profile).filter_by(user_id=user.id).first()  # N+1 query
+
+    result = ""
+    for item in items:
+        result += item.name  # Inefficient string concatenation
+    ```
+  </Accordion>
 </AccordionGroup>
 
 ## Severity Levels
@@ -234,6 +253,7 @@ Customize analysis behavior in `.refactron.yaml`:
 # Enable specific analyzers
 enabled_analyzers:
   - security
+  - performance
   - complexity
   - code_smell
   - type_hint
