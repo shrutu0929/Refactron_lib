@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any
+
+from refactron.rag.indexer import get_sentence_transformer
 
 try:
     import chromadb
@@ -38,7 +40,7 @@ class ContextRetriever:
     def __init__(
         self,
         workspace_path: Path,
-        embedding_model: str = "all-MiniLM-L6-v2",
+        embedding_model: Any = "all-MiniLM-L6-v2",
         collection_name: str = "code_chunks",
     ):
         """Initialize the context retriever.
@@ -58,7 +60,10 @@ class ContextRetriever:
         self.index_path = self.workspace_path / ".rag"
 
         # Initialize embedding model
-        self.embedding_model = SentenceTransformer(embedding_model)
+        if isinstance(embedding_model, str):
+            self.embedding_model = get_sentence_transformer(embedding_model)
+        else:
+            self.embedding_model = embedding_model
 
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(

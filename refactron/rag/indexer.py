@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
+from functools import lru_cache
 
 try:
     import chromadb
@@ -18,6 +19,16 @@ except ImportError:
     Settings = None
     SentenceTransformer = None
     CHROMA_AVAILABLE = False
+
+@lru_cache(maxsize=2)
+def get_sentence_transformer(model_name: str) -> Any:
+    """Module-level LRU cache for SentenceTransformer to avoid duplicate memory allocation."""
+    if not SentenceTransformer:
+        raise RuntimeError(
+            "sentence-transformers is not available. "
+            "Install with: pip install sentence-transformers"
+        )
+    return SentenceTransformer(model_name)
 
 from refactron.rag.chunker import CodeChunk
 from refactron.rag.parser import CodeParser
@@ -46,7 +57,7 @@ class RAGIndexer:
     def __init__(
         self,
         workspace_path: Path,
-        embedding_model: str = "all-MiniLM-L6-v2",
+        embedding_model: Any = "all-MiniLM-L6-v2",
         collection_name: str = "code_chunks",
         llm_client: Optional[GroqClient] = None,
     ):
@@ -74,8 +85,12 @@ class RAGIndexer:
         self.llm_client = llm_client
 
         # Initialize embedding model
-        self.embedding_model_name = embedding_model
-        self.embedding_model = SentenceTransformer(embedding_model)
+        if isinstance(embedding_model, str):
+            self.embedding_model_name = embedding_model
+            self.embedding_model = get_sentence_transformer(embedding_model)
+        else:
+            self.embedding_model_name = "custom_model"
+            self.embedding_model = embedding_model
 
         # Initialize ChromaDB
         self.client = chromadb.PersistentClient(
