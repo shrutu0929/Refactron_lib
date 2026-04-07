@@ -265,15 +265,19 @@ class Refactron:
             # Create a wrapper function for parallel processing
             def process_file_wrapper(
                 file_path: Path,
-            ) -> Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]:
+            ) -> Tuple[Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]]:
                 try:
+<<<<<<< Updated upstream
                     file_metrics = self._analyze_file(file_path)
+=======
+                    file_metrics, skip_warn = self._analyze_file(file_path)
+>>>>>>> Stashed changes
 
                     # Update incremental tracker
                     if self.incremental_tracker.enabled:
                         self.incremental_tracker.update_file_state(file_path)
 
-                    return file_metrics, None
+                    return file_metrics, None, skip_warn
                 except AnalysisError as e:
                     logger.debug(f"Failed to analyze {file_path}: {e}")
                     error = FileAnalysisError(
@@ -282,7 +286,7 @@ class Refactron:
                         error_type=e.__class__.__name__,
                         recovery_suggestion=e.recovery_suggestion,
                     )
-                    return None, error
+                    return None, error, None
                 except Exception as e:
                     logger.error(f"Unexpected error analyzing {file_path}: {e}", exc_info=True)
                     error = FileAnalysisError(
@@ -291,16 +295,17 @@ class Refactron:
                         error_type=e.__class__.__name__,
                         recovery_suggestion="Check the file for syntax errors or encoding issues",
                     )
-                    return None, error
+                    return None, error, None
 
             # Process files in parallel
-            file_metrics_list, error_list = self.parallel_processor.process_files(
+            file_metrics_list, error_list, skip_warnings = self.parallel_processor.process_files(
                 files,
                 process_file_wrapper,
             )
 
             result.file_metrics.extend(file_metrics_list)
             result.failed_files.extend(error_list)
+            result.semantic_skip_warnings.extend(skip_warnings)
             result.total_issues = sum(fm.issue_count for fm in file_metrics_list)
         else:
             # Sequential processing
