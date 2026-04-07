@@ -20,6 +20,8 @@ class TestSuiteGate(BaseCheck):
 
     def __init__(self, project_root: Optional[Path] = None):
         self.project_root = project_root
+        self._test_file_cache: Optional[Dict[str, List[Path]]] = None
+        self._all_test_files: Optional[List[Path]] = None
 
     def verify(self, original: str, transformed: str, file_path: Path) -> CheckResult:
         start = time.monotonic()
@@ -110,11 +112,27 @@ class TestSuiteGate(BaseCheck):
         module_name = file_path.stem
         search_root = self.project_root or file_path.parent
 
+        if self._test_file_cache is None:
+            self._test_file_cache = {}
+            self._all_test_files = []
+            
+            test_dirs = [d for d in [search_root / "tests", search_root / "test"] if d.is_dir()]
+            search_dirs = test_dirs if test_dirs else [search_root]
+            excluded_dirs = {".git", ".rag", "__pycache__", "venv", ".venv", "env", "node_modules"}
+            
+            for root_dir in search_dirs:
+                for py_file in root_dir.rglob("*.py"):
+                    if any(excluded in py_file.parts for excluded in excluded_dirs):
+                        continue
+                    name = py_file.name
+                    if name.startswith("test_") or name.endswith("_test.py"):
+                        self._all_test_files.append(py_file)
+
+        if module_name in self._test_file_cache:
+            return self._test_file_cache[module_name]
+
         test_files: List[Path] = []
-        for py_file in search_root.rglob("*.py"):
-            name = py_file.name
-            if not (name.startswith("test_") or name.endswith("_test.py")):
-                continue
+        for py_file in self._all_test_files:  # type: ignore
             if py_file == file_path:
                 continue
             try:
@@ -123,6 +141,8 @@ class TestSuiteGate(BaseCheck):
                     test_files.append(py_file)
             except Exception:
                 continue
+                
+        self._test_file_cache[module_name] = test_files
         return test_files
 
     @staticmethod
