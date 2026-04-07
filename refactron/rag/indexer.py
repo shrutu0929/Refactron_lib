@@ -91,7 +91,7 @@ class RAGIndexer:
         self.parser = CodeParser()
 
     def index_repository(
-        self, repo_path: Optional[Path] = None, summarize: bool = False
+        self, repo_path: Optional[Path] = None, summarize: bool = False, batch_size: int = 100
     ) -> IndexStats:
         """Index an entire repository.
 
@@ -127,6 +127,8 @@ class RAGIndexer:
 
         total_chunks = 0
         chunk_type_counts: Dict[str, int] = {}
+        
+        current_batch: List[CodeChunk] = []
 
         # Index each file
         for py_file in python_files:
@@ -139,10 +141,19 @@ class RAGIndexer:
                     chunk_type_counts[chunk.chunk_type] = (
                         chunk_type_counts.get(chunk.chunk_type, 0) + 1
                     )
+                
+                current_batch.extend(chunks)
+                
+                if len(current_batch) >= batch_size:
+                    self.add_chunks(current_batch)
+                    current_batch = []
             except Exception as e:
                 # Skip files that can't be parsed
                 print(f"Warning: Could not index {py_file}: {e}")
                 continue
+
+        if current_batch:
+            self.add_chunks(current_batch)
 
         # Save index metadata
         self._save_metadata(
@@ -187,9 +198,6 @@ class RAGIndexer:
                         chunk.metadata["ai_summary"] = summary
                 except Exception as e:
                     print(f"Warning: AI summarization failed for chunk in {file_path}: {e}")
-
-        # Add chunks to the index
-        self.add_chunks(chunks)
 
         return chunks
 
