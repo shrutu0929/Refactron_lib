@@ -267,11 +267,7 @@ class Refactron:
                 file_path: Path,
             ) -> Tuple[Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]]:
                 try:
-<<<<<<< Updated upstream
-                    file_metrics = self._analyze_file(file_path)
-=======
                     file_metrics, skip_warn = self._analyze_file(file_path)
->>>>>>> Stashed changes
 
                     # Update incremental tracker
                     if self.incremental_tracker.enabled:
@@ -311,9 +307,11 @@ class Refactron:
             # Sequential processing
             for file_path in files:
                 try:
-                    file_metrics = self._analyze_file(file_path)
+                    file_metrics, skip_warn = self._analyze_file(file_path)
                     result.file_metrics.append(file_metrics)
                     result.total_issues += file_metrics.issue_count
+                    if skip_warn is not None:
+                        result.semantic_skip_warnings.append(skip_warn)
 
                     # Update incremental tracker
                     if self.incremental_tracker.enabled:
