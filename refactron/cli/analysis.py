@@ -3,6 +3,8 @@ Refactron CLI - Analysis Module.
 Commands for analyzing code, generating reports, and metrics.
 """
 
+import logging
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -14,6 +16,7 @@ from refactron.cli.ui import (
     _auth_banner,
     _create_summary_table,
     _interactive_file_selector,
+    _interactive_issue_viewer,
     _print_detailed_issues,
     _print_file_count,
     _print_helpful_tips,
@@ -82,6 +85,32 @@ from refactron.rag.retriever import ContextRetriever
         "overrides the selected profile."
     ),
 )
+@click.option(
+    "--no-cache",
+    is_flag=True,
+    default=False,
+    help="Disable incremental analysis cache — re-analyze all files from scratch",
+)
+@click.option(
+    "--no-interactive",
+    is_flag=True,
+    default=False,
+    help="Disable interactive mode — dump all issues (for CI/CD or piped output)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"], case_sensitive=False),
+    default="text",
+    help="Output format: text (default) or json (for CI/CD scripts)",
+)
+@click.option(
+    "--fail-on",
+    "fail_on",
+    type=click.Choice(["CRITICAL", "ERROR", "WARNING", "INFO"], case_sensitive=False),
+    default=None,
+    help="Exit 1 if any issues at this level or above exist (for CI quality gates)",
+)
 def analyze(
     target: Optional[str],
     config: Optional[str],
@@ -92,6 +121,10 @@ def analyze(
     show_metrics: bool,
     profile: Optional[str],
     environment: Optional[str],
+    no_cache: bool,
+    no_interactive: bool,
+    output_format: str = "text",
+    fail_on: Optional[str] = None,
 ) -> None:
     """
     Analyze code for issues and technical debt.
@@ -101,9 +134,10 @@ def analyze(
     # Setup logging
     _setup_logging()
 
-    console.print()
-    _auth_banner("Analysis")
-    console.print()
+    if output_format != "json":
+        console.print()
+        _auth_banner("Analysis")
+        console.print()
 
     # Determine target path - use workspace if not provided
     if not target:
@@ -141,34 +175,73 @@ def analyze(
     # Override config with CLI options
     if log_level:
         cfg.log_level = log_level
+        logging.getLogger("refactron").setLevel(getattr(logging, log_level.upper()))
     if log_format:
         cfg.log_format = log_format
     if metrics is not None:
         cfg.enable_metrics = metrics
+    if no_cache:
+        cfg.enable_incremental_analysis = False
 
-    _print_file_count(target_path)
+    if output_format != "json":
+        _print_file_count(target_path)
 
     # Run analysis
     try:
-        with console.status("[primary]Analyzing code...[/primary]"):
+        if output_format != "json":
+            with console.status("[primary]Analyzing code...[/primary]"):
+                refactron = Refactron(cfg)
+                result = refactron.analyze(target)
+        else:
             refactron = Refactron(cfg)
             result = refactron.analyze(target)
     except Exception as e:
-        console.print(f"[red]Analysis failed: {e}[/red]")
-        console.print("[dim]Tip: Check if all files have valid Python syntax[/dim]")
+        if output_format == "json":
+            import json as _json_err
+
+            click.echo(_json_err.dumps({"error": str(e)}))
+        else:
+            console.print(f"[red]Analysis failed: {e}[/red]")
+            console.print("[dim]Tip: Check if all files have valid Python syntax[/dim]")
         raise SystemExit(1)
 
     # Display results
     summary = result.summary()
-    console.print(_create_summary_table(summary))
-    console.print()
 
-    _print_status_messages(summary)
+    # JSON format — output raw JSON and exit immediately
+    if output_format == "json":
+        import json as _json
 
-    if detailed and result.all_issues:
-        _print_detailed_issues(result)
+        issues_data = [
+            {
+                "level": issue.level.value.upper(),
+                "category": issue.category.value,
+                "message": issue.message,
+                "file": str(issue.file_path),
+                "line": issue.line_number,
+                "column": issue.column,
+            }
+            for issue in result.all_issues
+        ]
+        payload = {**summary, "issues": issues_data}
+        click.echo(_json.dumps(payload, indent=2))
+        raise SystemExit(1 if summary["critical"] > 0 else 0)
 
-    _print_helpful_tips(summary, detailed)
+    use_interactive = sys.stdout.isatty() and not no_interactive
+
+    if use_interactive:
+        _interactive_issue_viewer(result, target_path)
+    else:
+        # Non-interactive: grouped dump for CI/CD or piped output
+        console.print(_create_summary_table(summary))
+        console.print()
+
+        _print_status_messages(summary)
+
+        if detailed and result.all_issues:
+            _print_detailed_issues(result)
+
+        _print_helpful_tips(summary, detailed)
 
     # Show metrics if requested
     if show_metrics and cfg.enable_metrics:
@@ -185,8 +258,21 @@ def analyze(
         )
         console.print(f"  Success rate: {metrics_summary.get('success_rate_percent', 0):.1f}%")
 
-    # Exit with error code if critical issues found
-    if summary["critical"] > 0:
+    # Exit with error code: --fail-on sets threshold, default is CRITICAL
+    _LEVEL_RANK = {"INFO": 0, "WARNING": 1, "ERROR": 2, "CRITICAL": 3}
+    _SUMMARY_KEY = {
+        "INFO": "info",
+        "WARNING": "warnings",
+        "ERROR": "errors",
+        "CRITICAL": "critical",
+    }
+
+    effective_fail_on = fail_on.upper() if fail_on else "CRITICAL"
+    threshold = _LEVEL_RANK[effective_fail_on]
+    should_fail = any(
+        summary[_SUMMARY_KEY[lvl]] > 0 for lvl, rank in _LEVEL_RANK.items() if rank >= threshold
+    )
+    if should_fail:
         raise SystemExit(1)
 
 
@@ -263,7 +349,7 @@ def report(
             output_path = Path(output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(output_path, "w") as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(report_content)
 
             file_size = output_path.stat().st_size
