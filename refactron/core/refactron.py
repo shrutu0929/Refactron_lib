@@ -270,8 +270,7 @@ class Refactron:
             ) -> Tuple[Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]]:
                 try:
                     file_metrics, skip_warn = self._analyze_file(file_path)
-                    if skip_warn is not None:
-                        result.semantic_skip_warnings.append(skip_warn)
+                    # Warnings are collected by ParallelProcessor.process_files return
 
                     # Update incremental tracker
                     if self.incremental_tracker.enabled:
