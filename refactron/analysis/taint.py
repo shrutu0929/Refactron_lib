@@ -76,6 +76,19 @@ class TaintAnalyzer:
         self._sources = {s.name for s in config.sources}
         self._sinks = {s.name: s for s in config.sinks}
         self._sanitizers = set(config.sanitizers)
+        self._statement_meta: Dict[ast.AST, List[ast.AST]] = {}
+        self._index_sensitive_nodes()
+
+    def _index_sensitive_nodes(self):
+        """Pre-index statements that contain potential sinks or sources."""
+        for node in self.data_flow.nodes:
+            for stmt in node.statements:
+                sensitive = []
+                for child in ast.walk(stmt):
+                    if isinstance(child, (ast.Call, ast.Attribute)):
+                        sensitive.append(child)
+                if sensitive:
+                    self._statement_meta[stmt] = sensitive
 
     def analyze(self) -> List[TaintVulnerability]:
         """
@@ -109,20 +122,22 @@ class TaintAnalyzer:
                 for pred in node.predecessors:
                     incoming_taint.update(tainted_vars[pred.id])
 
+                # 2. Iterative Taint Propagation
                 # Process block statements
                 current_taint = incoming_taint.copy()
 
                 for stmt in node.statements:
+                    # Shared memo for the entire statement processing
+                    memo: Dict[ast.AST, bool] = {}
+
                     # Check for Sink usage
-                    vuls = self._check_sink(stmt, current_taint, node.id)
-                    # We accumulate vulnerabilities but continue analysis
-                    # De-duplicate vuls?
+                    vuls = self._check_sink(stmt, current_taint, node.id, memo)
                     for v in vuls:
                         if v not in vulnerabilities:
                             vulnerabilities.append(v)
 
                     # Update Taint (Sources & Propagation)
-                    new_taints, cleansed = self._propagate_taint(stmt, current_taint)
+                    new_taints, cleansed = self._propagate_taint(stmt, current_taint, memo)
                     current_taint.update(new_taints)
                     current_taint.difference_update(cleansed)
 
@@ -137,7 +152,9 @@ class TaintAnalyzer:
 
         return vulnerabilities
 
-    def _propagate_taint(self, stmt: ast.AST, current_taint: Set[str]) -> Tuple[Set[str], Set[str]]:
+    def _propagate_taint(
+        self, stmt: ast.AST, current_taint: Set[str], memo: Dict[ast.AST, bool]
+    ) -> Tuple[Set[str], Set[str]]:
         """
         Analyze a statement and return (newly_tainted_vars, cleansed_vars).
         """
@@ -152,7 +169,7 @@ class TaintAnalyzer:
                 targets = [stmt.target]
 
             value = stmt.value  # type: ignore[union-attr, attr-defined]
-            is_tainted = self._is_expression_tainted(value, current_taint)  # type: ignore[arg-type]
+            is_tainted = self._is_expression_tainted(value, current_taint, memo)  # type: ignore[arg-type]
 
             for target in targets:
                 if isinstance(target, ast.Name):
@@ -164,70 +181,84 @@ class TaintAnalyzer:
 
         return generated, killed
 
-    def _is_expression_tainted(self, expr: ast.AST, current_taint: Set[str]) -> bool:
+    def _is_expression_tainted(
+        self, expr: ast.AST, current_taint: Set[str], memo: Dict[ast.AST, bool]
+    ) -> bool:
         """Check if an expression evaluates to a tainted value."""
+        if expr in memo:
+            return memo[expr]
+
+        result = False
         if isinstance(expr, ast.Name):
             # Check if variable is already tainted
             if expr.id in current_taint:
-                return True
+                result = True
             # Check if it's a direct source (e.g. 'request')
-            if expr.id in self._sources:
-                return True
+            elif expr.id in self._sources:
+                result = True
 
         elif isinstance(expr, ast.Call):
             # Check if function call returns taint (Source)
             func_name = self._get_call_name(expr)
             if func_name in self._sources:
-                return True
-
+                result = True
             # Check if function call propagates taint (Sanitizer check)
-            if func_name in self._sanitizers:
-                return False
-
-            # Default: propagate if any arg is tainted
-            for arg in expr.args:
-                if self._is_expression_tainted(arg, current_taint):
-                    return True
+            elif func_name in self._sanitizers:
+                result = False
+            else:
+                # Default: propagate if any arg is tainted
+                for arg in expr.args:
+                    if self._is_expression_tainted(arg, current_taint, memo):
+                        result = True
+                        break
 
         elif isinstance(expr, ast.BinOp):
             # Binary op is tainted if either side is tainted
-            return self._is_expression_tainted(
-                expr.left, current_taint
-            ) or self._is_expression_tainted(expr.right, current_taint)
+            result = self._is_expression_tainted(
+                expr.left, current_taint, memo
+            ) or self._is_expression_tainted(expr.right, current_taint, memo)
 
         elif isinstance(expr, ast.JoinedStr):
             # f-string: tainted if any value in it is tainted
             for value in expr.values:
                 if isinstance(value, ast.FormattedValue):
-                    if self._is_expression_tainted(value.value, current_taint):
-                        return True
-                elif self._is_expression_tainted(value, current_taint):
-                    return True
+                    if self._is_expression_tainted(value.value, current_taint, memo):
+                        result = True
+                        break
+                elif self._is_expression_tainted(value, current_taint, memo):
+                    result = True
+                    break
 
         elif isinstance(expr, ast.Subscript):
             # Propagate from value (e.g. args.input)
-            if self._is_expression_tainted(expr.value, current_taint):
-                return True
+            result = self._is_expression_tainted(expr.value, current_taint, memo)
 
         elif isinstance(expr, ast.Attribute):
             # Check specific attributes (e.g. os.environ)
             full_name = self._get_attribute_name(expr)
             if full_name in self._sources:
-                return True
+                result = True
             # Propagate from object (simple object taint)
-            if self._is_expression_tainted(expr.value, current_taint):
-                return True
+            elif self._is_expression_tainted(expr.value, current_taint, memo):
+                result = True
 
-        return False
+        memo[expr] = result
+        return result
 
     def _check_sink(
-        self, stmt: ast.AST, current_taint: Set[str], node_id: int
+        self,
+        stmt: ast.AST,
+        current_taint: Set[str],
+        node_id: int,
+        memo: Dict[ast.AST, bool],
     ) -> List[TaintVulnerability]:
         """Check if a statement uses a tainted variable in a sink."""
         vuls = []
 
-        # We need to traverse the statement to find Call nodes
-        for node in ast.walk(stmt):
+        # Use pre-indexed potentially sensitive nodes instead of ast.walk
+        sensitive_nodes = self._statement_meta.get(stmt, [])
+
+        for node in sensitive_nodes:
             if isinstance(node, ast.Call):
                 func_name = self._get_call_name(node)
                 if func_name in self._sinks:
@@ -235,7 +266,7 @@ class TaintAnalyzer:
                     # Check the sensitive argument
                     if len(node.args) > sink_def.arg_index:
                         arg = node.args[sink_def.arg_index]
-                        if self._is_expression_tainted(arg, current_taint):
+                        if self._is_expression_tainted(arg, current_taint, memo):
                             # Identify which variable caused it for reporting
                             var_name = "expression"
                             if isinstance(arg, ast.Name):
