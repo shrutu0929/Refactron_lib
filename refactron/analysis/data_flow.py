@@ -70,36 +70,40 @@ class DataFlowAnalyzer:
             gen[node.id] = node_gen
             kill[node.id] = node_kill
 
-        # 2. Iterative Worklist Algorithm
+        # 2. Worklist Algorithm
         # in_set[n] = union(out_set[p] for p in predecessors)
         # out_set[n] = gen[n] union (in_set[n] - kill[n])
 
         in_sets: Dict[int, Set[Tuple[str, int]]] = defaultdict(set)
         out_sets: Dict[int, Set[Tuple[str, int]]] = defaultdict(set)
 
-        changed = True
-        while changed:
-            changed = False
-            for node in self.nodes:
-                # Compute IN set
-                new_in = set()
-                for pred in node.predecessors:
-                    new_in.update(out_sets[pred.id])
+        worklist = deque(self.nodes)
+        on_worklist = {node.id for node in self.nodes}
 
-                if new_in != in_sets[node.id]:
-                    in_sets[node.id] = new_in
-                    # recompute OUT causes change?
-                    # actually OUT depends on IN, so we just check if OUT changes
+        while worklist:
+            node = worklist.popleft()
+            on_worklist.remove(node.id)
 
-                # Compute OUT set
-                # kill[node.id] is set of var names.
-                # We remove any definition (v, d) where v is in kill set.
-                preserved = {(v, d) for v, d in new_in if v not in kill[node.id]}
-                new_out = gen[node.id].union(preserved)
+            # Compute IN set
+            new_in = set()
+            for pred in node.predecessors:
+                new_in.update(out_sets[pred.id])
 
-                if new_out != out_sets[node.id]:
-                    out_sets[node.id] = new_out
-                    changed = True
+            in_sets[node.id] = new_in
+
+            # Compute OUT set
+            # kill[node.id] is set of var names.
+            # We remove any definition (v, d) where v is in kill set.
+            preserved = {(v, d) for v, d in new_in if v not in kill[node.id]}
+            new_out = gen[node.id].union(preserved)
+
+            if new_out != out_sets[node.id]:
+                out_sets[node.id] = new_out
+                # If OUT changes, successors need re-computation
+                for succ, _ in node.successors:
+                    if succ.id not in on_worklist:
+                        worklist.append(succ)
+                        on_worklist.add(succ.id)
 
         return in_sets
 
