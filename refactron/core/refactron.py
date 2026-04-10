@@ -267,17 +267,18 @@ class Refactron:
             # Create a wrapper function for parallel processing
             def process_file_wrapper(
                 file_path: Path,
-            ) -> Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]:
+            ) -> Tuple[
+                Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]
+            ]:
                 try:
                     file_metrics, skip_warn = self._analyze_file(file_path)
-                    if skip_warn is not None:
-                        result.semantic_skip_warnings.append(skip_warn)
+                    # Warnings are collected by ParallelProcessor.process_files return
 
                     # Update incremental tracker
                     if self.incremental_tracker.enabled:
                         self.incremental_tracker.update_file_state(file_path)
 
-                    return file_metrics, None
+                    return file_metrics, None, skip_warn
                 except AnalysisError as e:
                     logger.debug(f"Failed to analyze {file_path}: {e}")
                     error = FileAnalysisError(
@@ -286,7 +287,7 @@ class Refactron:
                         error_type=e.__class__.__name__,
                         recovery_suggestion=e.recovery_suggestion,
                     )
-                    return None, error
+                    return None, error, None
                 except Exception as e:
                     logger.error(f"Unexpected error analyzing {file_path}: {e}", exc_info=True)
                     error = FileAnalysisError(
@@ -295,16 +296,17 @@ class Refactron:
                         error_type=e.__class__.__name__,
                         recovery_suggestion="Check the file for syntax errors or encoding issues",
                     )
-                    return None, error
+                    return None, error, None
 
             # Process files in parallel
-            file_metrics_list, error_list = self.parallel_processor.process_files(
+            file_metrics_list, error_list, skip_warnings = self.parallel_processor.process_files(
                 files,
                 process_file_wrapper,
             )
 
             result.file_metrics.extend(file_metrics_list)
             result.failed_files.extend(error_list)
+            result.semantic_skip_warnings.extend(skip_warnings)
             result.total_issues = sum(fm.issue_count for fm in file_metrics_list)
         else:
             # Sequential processing
@@ -331,13 +333,12 @@ class Refactron:
                     )
                 except Exception as e:
                     logger.error(f"Unexpected error analyzing {file_path}: {e}", exc_info=True)
-                    recovery_msg = "Check the file for syntax errors or encoding issues"
                     result.failed_files.append(
                         FileAnalysisError(
                             file_path=file_path,
                             error_message=str(e),
                             error_type=e.__class__.__name__,
-                            recovery_suggestion=recovery_msg,
+                            recovery_suggestion="Check the file for syntax errors or encoding issues",
                         )
                     )
 
@@ -346,7 +347,7 @@ class Refactron:
         skipped_count = len(result.semantic_skip_warnings)
         if total_analyzed > 0 and skipped_count / total_analyzed > 0.10:
             result.semantic_skip_summary = (
-                f"⚠ Semantic analysis (taint) was skipped for {skipped_count} of "
+                f"(warning) Semantic analysis (taint) was skipped for {skipped_count} of "
                 f"{total_analyzed} files ({skipped_count / total_analyzed * 100:.0f}%). "
                 "Check logs for details. Common causes: unsupported syntax or very large files."
             )
@@ -371,7 +372,7 @@ class Refactron:
                     analyzers_used=analyzer_names,
                 )
 
-        # End memory profiling
+        # Final memory snapshot
         if self.memory_profiler.enabled:
             self.memory_profiler.snapshot("analysis_end")
             diff = self.memory_profiler.compare("analysis_start", "analysis_end")
