@@ -5,6 +5,7 @@ Implements standard data flow analyses like Reaching Definitions.
 
 import ast
 from collections import defaultdict, deque
+from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 
 from .cfg.node import CFGNode
@@ -24,6 +25,11 @@ class DataFlowAnalyzer:
 
         while queue:
             node = queue.popleft()
+        queue = [entry]
+        visited.add(entry.id)
+
+        while queue:
+            node = queue.pop(0)
             nodes.append(node)
             for succ, _ in node.successors:
                 if succ.id not in visited:
@@ -71,6 +77,7 @@ class DataFlowAnalyzer:
             kill[node.id] = node_kill
 
         # 2. Worklist Algorithm
+        # 2. Iterative Worklist Algorithm
         # in_set[n] = union(out_set[p] for p in predecessors)
         # out_set[n] = gen[n] union (in_set[n] - kill[n])
 
@@ -104,6 +111,29 @@ class DataFlowAnalyzer:
                     if succ.id not in on_worklist:
                         worklist.append(succ)
                         on_worklist.add(succ.id)
+        changed = True
+        while changed:
+            changed = False
+            for node in self.nodes:
+                # Compute IN set
+                new_in = set()
+                for pred in node.predecessors:
+                    new_in.update(out_sets[pred.id])
+
+                if new_in != in_sets[node.id]:
+                    in_sets[node.id] = new_in
+                    # recompute OUT causes change?
+                    # actually OUT depends on IN, so we just check if OUT changes
+
+                # Compute OUT set
+                # kill[node.id] is set of var names.
+                # We remove any definition (v, d) where v is in kill set.
+                preserved = {(v, d) for v, d in new_in if v not in kill[node.id]}
+                new_out = gen[node.id].union(preserved)
+
+                if new_out != out_sets[node.id]:
+                    out_sets[node.id] = new_out
+                    changed = True
 
         return in_sets
 
