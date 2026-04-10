@@ -5,6 +5,7 @@ Implements standard data flow analyses like Reaching Definitions.
 
 import ast
 from collections import defaultdict, deque
+from collections import defaultdict
 from typing import Dict, List, Set, Tuple
 
 from .cfg.node import CFGNode
@@ -24,6 +25,11 @@ class DataFlowAnalyzer:
 
         while queue:
             node = queue.popleft()
+        queue = [entry]
+        visited.add(entry.id)
+
+        while queue:
+            node = queue.pop(0)
             nodes.append(node)
             for succ, _ in node.successors:
                 if succ.id not in visited:
