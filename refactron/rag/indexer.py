@@ -10,6 +10,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 if TYPE_CHECKING:
     from refactron.llm.orchestrator import LLMOrchestrator
 
+# LLMOrchestrator is imported lazily at runtime to keep it patchable in tests
+try:
+    from refactron.llm.orchestrator import LLMOrchestrator as _LLMOrchestrator  # noqa: F401
+except Exception:
+    _LLMOrchestrator = None  # type: ignore
+
 # RAG dependencies are loaded lazily in __init__ to prevent CLI crashes
 # if libraries like PyTorch fail to initialize (common on some Windows environments).
 CHROMA_AVAILABLE = None
@@ -225,8 +231,14 @@ class RAGIndexer:
         if not self.llm_integration:
             return None
 
-        # Delegate to the orchestration layer
-        return self.llm_integration.generate_chunk_summary(chunk.content)
+        try:
+            # Delegate to the orchestration layer
+            return self.llm_integration.generate_chunk_summary(chunk.content)
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(f"Chunk summarization failed: {e}")
+            return None
 
     def add_chunks(self, chunks: List[CodeChunk]) -> None:
         """Add code chunks to the vector index or keyword storage.

@@ -34,7 +34,7 @@ class TestGroqClient:
         assert client.api_key == "test_key_123"
         assert client.model == "llama-3.3-70b-versatile"
         assert client.temperature == 0.2
-        assert client.max_tokens == 2000
+        assert client.max_tokens == 4000
 
     def test_client_initialization_from_env(self, mock_groq_api):
         """Test client initialization from environment variable."""

@@ -13,19 +13,25 @@ import pytest
 
 def make_indexer(tmp_path: Path):
     """Return a RAGIndexer with all heavy dependencies mocked."""
+    import refactron.rag.indexer as _indexer_mod
+
     mock_embedding_model = MagicMock()
     mock_embedding_model.encode.return_value = MagicMock(tolist=lambda: [[0.1, 0.2, 0.3]])
 
     mock_collection = MagicMock()
     mock_chroma_client = MagicMock()
     mock_chroma_client.get_or_create_collection.return_value = mock_collection
+    mock_chromadb = MagicMock()
+    mock_chromadb.PersistentClient.return_value = mock_chroma_client
 
-    with patch("refactron.rag.indexer.CHROMA_AVAILABLE", True), patch(
-        "refactron.rag.indexer.SentenceTransformer", return_value=mock_embedding_model
-    ), patch("refactron.rag.indexer.chromadb") as mock_chromadb, patch(
-        "refactron.rag.indexer.Settings"
-    ):
-        mock_chromadb.PersistentClient.return_value = mock_chroma_client
+    # SentenceTransformer and chromadb are injected lazily into the module's globals().
+    # We must force-set them before RAGIndexer.__init__ runs so it finds them.
+    _indexer_mod.CHROMA_AVAILABLE = True
+    _indexer_mod.__dict__["SentenceTransformer"] = MagicMock(return_value=mock_embedding_model)
+    _indexer_mod.__dict__["chromadb"] = mock_chromadb
+    _indexer_mod.__dict__["Settings"] = MagicMock()
+
+    try:
         from refactron.rag.indexer import RAGIndexer
 
         indexer = RAGIndexer(workspace_path=tmp_path)
@@ -33,6 +39,12 @@ def make_indexer(tmp_path: Path):
         indexer._mock_collection = mock_collection
         indexer._mock_embedding = mock_embedding_model
         return indexer
+    finally:
+        # Reset so other tests start fresh
+        _indexer_mod.CHROMA_AVAILABLE = None
+        _indexer_mod.__dict__.pop("SentenceTransformer", None)
+        _indexer_mod.__dict__.pop("chromadb", None)
+        _indexer_mod.__dict__.pop("Settings", None)
 
 
 # ── tests for IndexStats ──────────────────────────────────────────────────────
@@ -59,11 +71,17 @@ class TestIndexStats:
 
 class TestRAGIndexerInit:
     def test_raises_without_chromadb(self, tmp_path):
-        with patch("refactron.rag.indexer.CHROMA_AVAILABLE", False):
+        """When ChromaDB is unavailable the indexer falls back to keyword mode (no exception)."""
+        import refactron.rag.indexer as _mod
+
+        _mod.CHROMA_AVAILABLE = False  # force keyword path
+        try:
             from refactron.rag.indexer import RAGIndexer
 
-            with pytest.raises(RuntimeError, match="ChromaDB"):
-                RAGIndexer(workspace_path=tmp_path)
+            indexer = RAGIndexer(workspace_path=tmp_path)
+            assert indexer.mode == "keyword"
+        finally:
+            _mod.CHROMA_AVAILABLE = None  # reset for other tests
 
     def test_creates_index_dir(self, tmp_path):
         indexer = make_indexer(tmp_path)
@@ -151,7 +169,7 @@ class TestAddChunks:
 class TestSummarizeChunk:
     def test_returns_none_without_llm(self, tmp_path):
         indexer = make_indexer(tmp_path)
-        indexer.llm_client = None
+        indexer.llm_integration = None
         chunk = MagicMock()
         result = indexer._summarize_chunk(chunk)
         assert result is None
@@ -159,8 +177,8 @@ class TestSummarizeChunk:
     def test_returns_summary_with_llm(self, tmp_path):
         indexer = make_indexer(tmp_path)
         mock_llm = MagicMock()
-        mock_llm.generate.return_value = "Handles authentication."
-        indexer.llm_client = mock_llm
+        mock_llm.generate_chunk_summary.return_value = "Handles authentication."
+        indexer.llm_integration = mock_llm
         chunk = MagicMock()
         chunk.content = "def authenticate(): pass"
         result = indexer._summarize_chunk(chunk)
@@ -169,8 +187,8 @@ class TestSummarizeChunk:
     def test_llm_exception_returns_none(self, tmp_path):
         indexer = make_indexer(tmp_path)
         mock_llm = MagicMock()
-        mock_llm.generate.side_effect = RuntimeError("LLM error")
-        indexer.llm_client = mock_llm
+        mock_llm.generate_chunk_summary.side_effect = RuntimeError("LLM error")
+        indexer.llm_integration = mock_llm
         chunk = MagicMock()
         chunk.content = "x = 1"
         result = indexer._summarize_chunk(chunk)
@@ -227,16 +245,16 @@ class TestIndexRepository:
 
     def test_summarize_flag_initializes_llm(self, tmp_path):
         indexer = make_indexer(tmp_path)
-        indexer.llm_client = None
+        indexer.llm_integration = None
         # No files → summarize path never reached for real files
-        with patch("refactron.rag.indexer.GroqClient", MagicMock()):
+        with patch("refactron.llm.orchestrator.LLMOrchestrator", MagicMock()):
             stats = indexer.index_repository(tmp_path, summarize=True)
         assert stats.total_files == 0
 
     def test_summarize_flag_llm_init_failure(self, tmp_path):
         indexer = make_indexer(tmp_path)
-        indexer.llm_client = None
-        with patch("refactron.rag.indexer.GroqClient", side_effect=Exception("key error")):
+        indexer.llm_integration = None
+        with patch("refactron.llm.orchestrator.LLMOrchestrator", side_effect=Exception("key error")):
             stats = indexer.index_repository(tmp_path, summarize=True)
         assert stats.total_files == 0
 

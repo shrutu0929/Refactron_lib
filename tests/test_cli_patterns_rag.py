@@ -163,6 +163,16 @@ def test_rag_index_search_status_paths(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("refactron.cli.rag.RAGIndexer", _FakeIndexer)
     monkeypatch.setattr("refactron.cli.rag.ContextRetriever", _FakeRetriever)
 
+    # The `rag index` command routes through LLMOrchestrator.build_vector_index
+    class _FakeOrchestrator:
+        def __init__(self, *args, **kwargs):  # noqa: ARG002
+            pass
+
+        def build_vector_index(self, *args, **kwargs):  # noqa: ARG002
+            pass
+
+    monkeypatch.setattr("refactron.cli.rag.LLMOrchestrator", _FakeOrchestrator)
+
     with runner.isolated_filesystem(temp_dir=tmp_path):
         assert runner.invoke(rag, ["index"]).exit_code == 0
         assert runner.invoke(rag, ["search", "find function"]).exit_code == 0
