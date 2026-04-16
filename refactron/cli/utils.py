@@ -114,7 +114,7 @@ def _setup_logging(verbose: bool = False) -> None:
             from transformers import logging as tf_logging
 
             tf_logging.set_verbosity_error()
-        except ImportError:
+        except Exception:
             pass
 
 

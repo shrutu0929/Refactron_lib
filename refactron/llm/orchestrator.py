@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import ast
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -12,6 +13,8 @@ from refactron.llm.backend_client import BackendLLMClient
 from refactron.llm.client import GroqClient
 from refactron.llm.models import RefactoringSuggestion, SuggestionStatus
 from refactron.llm.prompts import (
+    BATCH_SUGGESTION_PROMPT,
+    BATCH_SUGGESTION_SYSTEM_PROMPT,
     BATCH_TRIAGE_PROMPT,
     BATCH_TRIAGE_SYSTEM_PROMPT,
     DOCUMENTATION_PROMPT,
@@ -30,10 +33,12 @@ class LLMOrchestrator:
     def __init__(
         self,
         retriever: Optional[ContextRetriever] = None,
+        workspace_path: Optional[Path] = None,
         llm_client: Optional[Union[GroqClient, BackendLLMClient]] = None,
         safety_gate: Optional[SafetyGate] = None,
     ):
         self.retriever = retriever
+        self.workspace_path = workspace_path
 
         if llm_client:
             self.client = llm_client
@@ -49,6 +54,82 @@ class LLMOrchestrator:
                 self.client = BackendLLMClient()
 
         self.safety_gate = safety_gate or SafetyGate()
+
+        # Auto-initialize retriever if missing but workspace is provided
+        if not self.retriever and self.workspace_path:
+            self._ensure_retriever()
+
+    def _ensure_retriever(self) -> None:
+        """Attempt to load or build the context retriever."""
+        from refactron.rag.retriever import ContextRetriever
+
+        try:
+            self.retriever = ContextRetriever(self.workspace_path)
+        except RuntimeError:
+            logger.info("RAG index missing. Auto-building index...")
+            self.build_vector_index(self.workspace_path, summarize=False)
+
+            # Try loading again after build
+            try:
+                self.retriever = ContextRetriever(self.workspace_path)
+            except RuntimeError as final_e:
+                logger.warning(
+                    f"Context retrieval will be limited. Failed to load RAG index: {final_e}"
+                )
+
+    def build_vector_index(self, workspace_path: Path, summarize: bool = False) -> None:
+        """Create or update the RAG vector index for the workspace.
+
+        Args:
+            workspace_path: Path to the workspace directory
+            summarize: Whether to use AI to summarize code for better retrieval
+        """
+        # Lazy import to prevent circular dependency
+        from refactron.rag.indexer import RAGIndexer
+
+        try:
+            indexer = RAGIndexer(workspace_path=workspace_path, llm_integration=self)
+            indexer.index_repository(summarize=summarize)
+
+            # Reload the retriever if it exists to pick up new chunks
+            if self.retriever:
+                # Assuming context retriever shares the same path concept
+                from refactron.rag.retriever import ContextRetriever
+
+                self.retriever = ContextRetriever(workspace_path)
+                logger.info("Successfully updated LLMOrchestrator vector retrieval context.")
+        except Exception as e:
+            logger.error(f"Failed to build vector index: {e}")
+
+    def generate_chunk_summary(self, chunk_content: str) -> Optional[str]:
+        """Generate a semantic summary of a code chunk for RAG indexing.
+
+        Args:
+            chunk_content: The python code chunk
+
+        Returns:
+            A one-sentence description of the chunk, or None on failure.
+        """
+        prompt = (
+            "Analyze the following Python code snippet and provide a one-sentence "
+            "summary of its purpose, focusing on what it DOES (e.g. 'Calculates user permissions' "
+            "or 'Handles secure database connections').\n\n"
+            f"Code:\n{chunk_content}"
+        )
+
+        try:
+            summary = self.client.generate(
+                prompt=prompt,
+                system=(
+                    "You are a senior software architect. "
+                    "Provide a concise, semantic summary of code purpose."
+                ),
+                max_tokens=100,
+            )
+            return summary.strip()
+        except Exception as e:
+            logger.warning(f"AI summarization failed: {e}")
+            return None
 
     def generate_suggestion(self, issue: CodeIssue, original_code: str) -> RefactoringSuggestion:
         """Generate a refactoring suggestion for a code issue.
@@ -114,11 +195,32 @@ class LLMOrchestrator:
             except (ValueError, TypeError, AttributeError):
                 confidence = 0.5  # Fallback
 
+            proposed_code = data.get("proposed_code", "")
+
+            # Aggressively clean up hallucinated markdown inside the JSON string
+            if proposed_code.startswith("```"):
+                lines = proposed_code.split("\n")
+                if lines[0].startswith("```"):
+                    lines.pop(0)
+                if lines and lines[-1].startswith("```"):
+                    lines.pop(-1)
+                proposed_code = "\n".join(lines).strip()
+
+            # If the LLM accidentally wrapped the code in JSON braces
+            if proposed_code.startswith("{") and proposed_code.endswith("}"):
+                potential_code = proposed_code[1:-1].strip()
+                try:
+                    # Only accept the stripped version if it's valid Python syntax
+                    ast.parse(potential_code)
+                    proposed_code = potential_code
+                except SyntaxError:
+                    pass
+
             suggestion = RefactoringSuggestion(
                 issue=issue,
                 original_code=original_code,
                 context_files=[r.file_path for r in results] if self.retriever else [],
-                proposed_code=data.get("proposed_code", ""),
+                proposed_code=proposed_code,
                 explanation=data.get("explanation", "No explanation provided."),
                 reasoning=data.get("reasoning", ""),
                 model_name=self.client.model,
@@ -153,6 +255,121 @@ class LLMOrchestrator:
             if not safety_result.passed:
                 suggestion.status = SuggestionStatus.REJECTED
                 logger.warning(f"Suggestion failed safety check: {safety_result.issues}")
+            else:
+                suggestion.status = SuggestionStatus.PENDING
+
+        except Exception as e:
+            logger.error(f"Safety validation failed: {e}")
+            suggestion.status = SuggestionStatus.FAILED
+
+        return suggestion
+
+    def generate_batch_suggestion(
+        self, issues: List[CodeIssue], original_code: str
+    ) -> RefactoringSuggestion:
+        """Generate a single refactoring suggestion that fixes a batch of issues.
+
+        Args:
+            issues: List of code issues to fix
+            original_code: The original source code of the file
+
+        Returns:
+            A combined refactoring suggestion
+        """
+        if not issues:
+            raise ValueError("No issues provided for batch suggestion")
+
+        # 1. Retrieve Context
+        context_snippets = []
+        if self.retriever:
+            try:
+                # Use the first few issues for context retrieval
+                query = " ".join([i.message for i in issues[:3]])
+                results = self.retriever.retrieve_similar(query, top_k=3)
+                context_snippets = [r.content for r in results]
+            except Exception as e:
+                logger.warning(f"Context retrieval failed: {e}")
+
+        rag_context = "\n\n".join(context_snippets) if context_snippets else "No context available."
+
+        # 2. Format issues for prompt
+        issues_details = ""
+        for idx, issue in enumerate(issues, 1):
+            issues_details += (
+                f"{idx}. {issue.category.value} (Line {issue.line_number}): {issue.message}\n"
+            )
+
+        # 3. Construct Prompt
+        prompt = BATCH_SUGGESTION_PROMPT.format(
+            issues_details=issues_details,
+            original_code=original_code,
+            rag_context=rag_context,
+        )
+
+        # 4. Call LLM
+        response_text = "N/A"
+        try:
+            response_text = self.client.generate(
+                prompt=prompt, system=BATCH_SUGGESTION_SYSTEM_PROMPT, temperature=0.2
+            )
+
+            # Reuse cleaning and parsing logic
+            clean_text = self._clean_json_response(response_text)
+            data = json.loads(clean_text, strict=False)
+
+            proposed_code = data.get("proposed_code", "")
+
+            # Clean up hallucinations
+            if proposed_code.startswith("```"):
+                lines = proposed_code.split("\n")
+                if lines[0].startswith("```"):
+                    lines.pop(0)
+                if lines and lines[-1].startswith("```"):
+                    lines.pop(-1)
+                proposed_code = "\n".join(lines).strip()
+
+            if proposed_code.startswith("{") and proposed_code.endswith("}"):
+                potential_code = proposed_code[1:-1].strip()
+                try:
+                    ast.parse(potential_code)
+                    proposed_code = potential_code
+                except SyntaxError:
+                    pass
+
+            suggestion = RefactoringSuggestion(
+                issue=issues[0],  # Use first issue as primary reference
+                original_code=original_code,
+                context_files=[r.file_path for r in results] if self.retriever else [],
+                proposed_code=proposed_code,
+                explanation=data.get("explanation", "Combined fix for multiple issues."),
+                reasoning=data.get("reasoning", ""),
+                model_name=self.client.model,
+                confidence_score=float(data.get("confidence_score", 0.7)),
+                llm_confidence=float(data.get("confidence_score", 0.7)),
+            )
+
+        except Exception as e:
+            logger.error(f"LLM batch generation failed: {e}")
+            return RefactoringSuggestion(
+                issue=issues[0],
+                original_code=original_code,
+                context_files=[],
+                proposed_code="",
+                explanation=f"Batch generation failed: {str(e)}",
+                reasoning="",
+                model_name=self.client.model,
+                confidence_score=0.0,
+                status=SuggestionStatus.FAILED,
+            )
+
+        # 5. Safety Validation
+        try:
+            safety_result = self.safety_gate.validate(suggestion)
+            suggestion.safety_result = safety_result
+            suggestion.confidence_score = safety_result.score
+
+            if not safety_result.passed:
+                suggestion.status = SuggestionStatus.REJECTED
             else:
                 suggestion.status = SuggestionStatus.PENDING
 

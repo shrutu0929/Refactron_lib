@@ -34,9 +34,15 @@ def main(ctx: click.Context) -> None:
     exempt_commands = ["login", "logout", "auth"]
 
     # 1. Pre-check authentication status
+    import os
+
     creds = load_credentials()
     is_authenticated = False
-    if creds and creds.access_token:
+
+    # If using local GROQ, we bypass cloud authentication checks
+    if os.environ.get("GROQ_API_KEY"):
+        is_authenticated = True
+    elif creds and creds.access_token:
         now = datetime.now(timezone.utc)
         if not creds.expires_at or creds.expires_at > now:
             is_authenticated = True
@@ -115,10 +121,11 @@ except ImportError:
     pass
 
 try:
-    from refactron.cli.refactor import autofix, document, refactor, rollback
+    from refactron.cli.refactor import ai_fix, autofix, document, refactor, rollback
 
     main.add_command(refactor)
     main.add_command(autofix)
+    main.add_command(ai_fix)
     main.add_command(rollback)
     main.add_command(document)
 except ImportError:

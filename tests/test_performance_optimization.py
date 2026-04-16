@@ -242,11 +242,12 @@ class TestParallelProcessing:
 
             def process_func(file_path):
                 # Simulate processing
-                return None, None
+                return None, None, None
 
-            results, errors = processor.process_files(files, process_func)
+            results, errors, skips = processor.process_files(files, process_func)
             assert len(results) == 0  # All return None
             assert len(errors) == 0
+            assert len(skips) == 0
 
 
 class TestMemoryProfiler:

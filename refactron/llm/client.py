@@ -21,7 +21,7 @@ class GroqClient:
         api_key: Optional[str] = None,
         model: str = "llama-3.3-70b-versatile",  # Updated to current model
         temperature: float = 0.2,
-        max_tokens: int = 2000,
+        max_tokens: int = 4000,
     ):
         """Initialize Groq client.
 

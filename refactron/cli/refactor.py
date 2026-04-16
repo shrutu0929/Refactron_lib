@@ -527,15 +527,7 @@ def document(target: str, apply: bool, interactive: bool) -> None:
     console.print(f"[bold]Documenting:[/bold] {target_path}")
 
     # Initialize components
-    try:
-        retriever = ContextRetriever(workspace_path)
-    except Exception:
-        console.print(
-            "[yellow]Warning: RAG index not found. Context retrieval will be limited.[/yellow]"
-        )
-        retriever = None
-
-    orchestrator = LLMOrchestrator(retriever=retriever)
+    orchestrator = LLMOrchestrator(workspace_path=workspace_path)
 
     # Generate
     code = target_path.read_text(encoding="utf-8")
@@ -587,3 +579,134 @@ def document(target: str, apply: bool, interactive: bool) -> None:
 
         except Exception as e:
             console.print(f"[red]Failed to create documentation: {e}[/red]")
+
+
+@click.command()
+@click.argument("target", type=click.Path(exists=True))
+@click.option(
+    "--config",
+    "-c",
+    type=click.Path(exists=True),
+    help="Path to configuration file",
+)
+@click.option(
+    "--apply/--no-apply",
+    default=False,
+    help="Apply the suggested changes to the file without prompt (if interactive is off)",
+)
+@click.option(
+    "--interactive/--no-interactive",
+    default=True,
+    help="Stop and prompt before applying each AI fix",
+)
+def ai_fix(target: str, config: Optional[str], apply: bool, interactive: bool) -> None:
+    """
+    Orchestrate automated AI fixes for code issues.
+
+    Analyzes the specified TARGET file, finds critical code issues,
+    and runs the LLM Orchestrator to suggest and apply fixes.
+    """
+    console.print()
+    _auth_banner("AI Auto-Fix Orchestrator")
+    console.print()
+
+    # 1. Setup
+    cfg = _load_config(config)
+    cfg.enable_incremental_analysis = False
+    _setup_logging()
+
+    target_path = Path(target).resolve()
+
+    if not target_path.is_file():
+        console.print(
+            "[red]Error: Please specify a single file. Directory analysis for ai-fix is coming soon.[/red]"
+        )
+        return
+
+    refactron_instance = Refactron(cfg)
+    workspace_path = refactron_instance.detect_project_root(target_path)
+
+    console.print(f"[bold]Step 1: Analyzing[/bold] {target_path}")
+
+    # Run analysis
+    try:
+        with console.status("[primary]Running static analyzers...[/primary]"):
+            result = refactron_instance.analyze(str(target_path))
+    except Exception as e:
+        console.print(f"[red]Analysis failed: {e}[/red]")
+        raise SystemExit(1)
+
+    # Get issues for the file
+    issues = [i for i in result.all_issues if str(target_path) in str(i.file_path)]
+    issues_to_fix = issues
+
+    if not issues_to_fix:
+        console.print("\n[green]Excellent! No issues found that require LLM fixing![/green]")
+        return
+
+    console.print(f"\n[bold]Found {len(issues_to_fix)} issues to fix.[/bold]")
+
+    # 2. Init AI components
+    orchestrator = LLMOrchestrator(workspace_path=workspace_path)
+
+    # 3. Process issues in batch
+    file_content = target_path.read_text(encoding="utf-8")
+
+    console.print(
+        f"\n[bold cyan]--- Orchestrating Batch Fix for {len(issues_to_fix)} issues ---[/bold cyan]"
+    )
+    for idx, issue in enumerate(issues_to_fix, 1):
+        console.print(
+            f"  {idx}. [yellow]{issue.category.value}[/yellow]: {issue.message} (Line {issue.line_number})"
+        )
+
+    with console.status("[bold cyan]Asking LLM for a comprehensive solution...[/bold cyan]"):
+        suggestion = orchestrator.generate_batch_suggestion(issues_to_fix, file_content)
+
+    if suggestion.status == SuggestionStatus.FAILED:
+        console.print(f"\n[red]AI Failed to generate a batch fix:[/red] {suggestion.explanation}")
+        return
+
+    console.print()
+    console.print(
+        Panel(
+            Markdown(suggestion.explanation),
+            title=f"AI Unified Fix Proposal ({suggestion.model_name})",
+            border_style="green",
+        )
+    )
+
+    console.print(
+        Panel(suggestion.proposed_code, title="Proposed Unified Code", style="on #1e1e1e")
+    )
+    console.print(
+        f"[dim]AI Confidence: {suggestion.llm_confidence:.2f}, Safety Score: {suggestion.confidence_score:.2f}[/dim]"
+    )
+
+    if suggestion.safety_result and not suggestion.safety_result.passed:
+        console.print(
+            f"[red]Warning: Fix failed basic safety checks: {', '.join(suggestion.safety_result.issues)}[/red]"
+        )
+
+    do_apply = apply
+    if interactive:
+        do_apply = click.confirm("\nDo you want to apply this unified AI fix to the file?")
+
+    if do_apply:
+        try:
+            # Backup
+            backup_sys = BackupRollbackSystem(workspace_path)
+            session_id, _ = backup_sys.prepare_for_refactoring(
+                [target_path], description=f"AI Batch Fix for {len(issues_to_fix)} issues"
+            )
+            console.print(f"[dim]Backup created: {session_id}[/dim]")
+
+            # Apply changes
+            target_path.write_text(suggestion.proposed_code, encoding="utf-8")
+            console.print("[green bold]Applied unified AI fix successfully![/green bold]")
+        except Exception as e:
+            console.print(f"[red]Failed to apply fix: {e}[/red]")
+    else:
+        console.print("[yellow]Skipping fix application.[/yellow]")
+
+    console.print("\n[bold]AI Auto-Fix Complete.[/bold] Verified and applied unified refactoring.")

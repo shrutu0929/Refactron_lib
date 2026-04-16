@@ -130,6 +130,9 @@ class RefactronConfig:
     pattern_learning_enabled: bool = True  # Enable learning from feedback
     pattern_ranking_enabled: bool = True  # Enable ranking based on learned patterns
 
+    # LLM settings
+    enable_llm_triage: bool = False  # Analyze potential false positives with the LLM
+
     @classmethod
     def from_file(
         cls,
@@ -243,6 +246,7 @@ class RefactronConfig:
             ),
             "pattern_learning_enabled": self.pattern_learning_enabled,
             "pattern_ranking_enabled": self.pattern_ranking_enabled,
+            "enable_llm_triage": getattr(self, "enable_llm_triage", False),
         }
 
         try:

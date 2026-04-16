@@ -903,16 +903,16 @@ def test_parallel_processor_sequential_and_thread_modes(tmp_path: Path) -> None:
     def process_func(p: Path):
         if p.name == "bad.py":
             raise ValueError("boom")
-        return None, None
+        return None, None, None
 
     p_seq = ParallelProcessor(max_workers=1, use_processes=False, enabled=True)
-    _, errors = p_seq.process_files(files, process_func)
+    _, errors, skips = p_seq.process_files(files, process_func)
     assert p_seq.enabled is False
     assert len(errors) == 1
     assert isinstance(errors[0], FileAnalysisError)
 
     p_thr = ParallelProcessor(max_workers=2, use_processes=False, enabled=True)
-    results, errors = p_thr.process_files(files, lambda p: (None, None))
+    results, errors, skips = p_thr.process_files(files, lambda p: (None, None, None))
     assert results == []
     assert errors == []
     assert p_thr.get_config()["max_workers"] == 2
@@ -1171,11 +1171,11 @@ def make_error(path):
 
 
 def success_func(p):
-    return make_metrics(p), None
+    return make_metrics(p), None, None
 
 
 def error_func(p):
-    return None, make_error(p)
+    return None, make_error(p), None
 
 
 def raises_func(p):
@@ -1210,23 +1210,23 @@ class TestParallelProcessorInit:
 class TestSequentialProcessing:
     def test_empty_files(self):
         pp = ParallelProcessor(enabled=False)
-        results, errors = pp.process_files([], success_func)
-        assert results == [] and errors == []
+        results, errors, skips = pp.process_files([], success_func)
+        assert results == [] and errors == [] and skips == []
 
     def test_single_file_success(self):
         pp = ParallelProcessor(enabled=False)
         files = [Path("a.py")]
-        results, errors = pp.process_files(files, success_func)
-        assert len(results) == 1 and len(errors) == 0
+        results, errors, skips = pp.process_files(files, success_func)
+        assert len(results) == 1 and len(errors) == 0 and len(skips) == 0
 
     def test_single_file_error(self):
         pp = ParallelProcessor(enabled=False)
-        results, errors = pp.process_files([Path("a.py")], error_func)
-        assert len(results) == 0 and len(errors) == 1
+        results, errors, skips = pp.process_files([Path("a.py")], error_func)
+        assert len(results) == 0 and len(errors) == 1 and len(skips) == 0
 
     def test_single_file_exception(self):
         pp = ParallelProcessor(enabled=False)
-        results, errors = pp.process_files([Path("a.py")], raises_func)
+        results, errors, skips = pp.process_files([Path("a.py")], raises_func)
         assert len(errors) == 1
 
     def test_progress_callback(self):
@@ -1244,12 +1244,13 @@ class TestThreadedProcessing:
     def test_two_files_threads(self):
         pp = ParallelProcessor(max_workers=2, use_processes=False, enabled=True)
         files = [Path("a.py"), Path("b.py")]
-        results, errors = pp.process_files(files, success_func)
+        results, errors, skips = pp.process_files(files, success_func)
         assert len(results) == 2
+        assert len(skips) == 0
 
     def test_thread_error_handling(self):
         pp = ParallelProcessor(max_workers=2, use_processes=False, enabled=True)
-        results, errors = pp.process_files([Path("a.py"), Path("b.py")], raises_func)
+        results, errors, skips = pp.process_files([Path("a.py"), Path("b.py")], raises_func)
         assert len(errors) == 2
 
     def test_thread_progress_callback(self):
@@ -1264,7 +1265,7 @@ class TestThreadedProcessing:
 
     def test_single_file_goes_sequential(self):
         pp = ParallelProcessor(max_workers=4, use_processes=False, enabled=True)
-        results, errors = pp.process_files([Path("a.py")], success_func)
+        results, errors, skips = pp.process_files([Path("a.py")], success_func)
         assert len(results) == 1
 
 
@@ -1274,13 +1275,13 @@ class TestProcessPoolProcessing:
         with patch(
             "refactron.core.parallel.ProcessPoolExecutor", side_effect=Exception("spawn fail")
         ):
-            results, errors = pp.process_files([Path("a.py")], success_func)
+            results, errors, skips = pp.process_files([Path("a.py")], success_func)
         assert len(results) == 1
 
     def test_process_pool_success(self):
         pp = ParallelProcessor(max_workers=2, use_processes=True, enabled=True)
         mock_future = MagicMock()
-        mock_future.result.return_value = (make_metrics(Path("a.py")), None)
+        mock_future.result.return_value = (make_metrics(Path("a.py")), None, None)
         mock_exec = MagicMock()
         mock_exec.__enter__ = lambda s: s
         mock_exec.__exit__ = MagicMock(return_value=False)

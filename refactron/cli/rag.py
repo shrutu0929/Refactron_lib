@@ -16,6 +16,7 @@ from rich.panel import Panel
 from refactron.cli.ui import _auth_banner, console
 from refactron.cli.utils import _setup_logging
 from refactron.core.workspace import WorkspaceManager
+from refactron.llm.orchestrator import LLMOrchestrator
 from refactron.rag.indexer import RAGIndexer
 from refactron.rag.retriever import ContextRetriever
 
@@ -68,14 +69,18 @@ def rag_index(background: bool, summarize: bool) -> None:
         console.print(f"[primary]Indexing:[/primary] {current_workspace.repo_full_name}\n")
 
     try:
+        orchestrator = LLMOrchestrator(workspace_path=local_path)
+
         if background:
             # Run without visual feedback
-            indexer = RAGIndexer(local_path)
-            indexer.index_repository(local_path, summarize=summarize)
+            orchestrator.build_vector_index(local_path, summarize=summarize)
         else:
             with console.status("[primary]Parsing and indexing code...[/primary]"):
+                orchestrator.build_vector_index(local_path, summarize=summarize)
+
+                # We need stats for the panel, get them from indexer
                 indexer = RAGIndexer(local_path)
-                stats = indexer.index_repository(local_path, summarize=summarize)
+                stats = indexer.get_stats()
 
             console.print(
                 Panel(
@@ -141,16 +146,14 @@ def rag_search(query: str, top_k: int, chunk_type: Optional[str], rerank: bool) 
             # AI Reranking if enabled
             if rerank:
                 try:
-                    from refactron.llm.client import GroqClient
-
-                    client = GroqClient()
+                    orchestrator = LLMOrchestrator(workspace_path=local_path)
                     prompt = (  # noqa: E501
                         f"Rate the relevance of the following code snippet to the user query: '{query}'\n\n"  # noqa: E501
                         f"Code:\n{result.content[:500]}\n\n"
                         "Provide only a percentage number (e.g. 85%) representing how well this code matches "  # noqa: E501
                         "the semantic intent of the query."
                     )
-                    ai_response = client.generate(
+                    ai_response = orchestrator.client.generate(
                         prompt=prompt,
                         system="You are a code relevance evaluator. Output only the percentage.",
                         max_tokens=10,

@@ -347,25 +347,46 @@ def _handle_group_key(state: TuiState, key: str) -> TuiState:
 
 def _read_key() -> str:
     """Read a single keypress from stdin, handling escape sequences for arrow keys."""
-    import termios
-    import tty
+    import sys
+    import platform
 
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(fd)
-        ch = sys.stdin.read(1)
-        if ch == "\x1b":
-            ch2 = sys.stdin.read(1)
-            if ch2 == "[":
-                ch3 = sys.stdin.read(1)
-                return "\x1b[" + ch3
-            return ch + ch2
-        if ch == "\n":
+    if platform.system() == "Windows":
+        import msvcrt
+
+        ch = msvcrt.getch()
+
+        # Handle special keys in Windows (arrows start with b'\xe0' or b'\x00')
+        if ch in (b"\xe0", b"\x00"):
+            ch2 = msvcrt.getch()
+            if ch2 == b"H":  # Up arrow
+                return KEY_UP
+            elif ch2 == b"P":  # Down arrow
+                return KEY_DOWN
+            return ch.decode("utf-8", "ignore") + ch2.decode("utf-8", "ignore")
+        elif ch in (b"\r", b"\n"):
             return KEY_ENTER
-        return ch
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        else:
+            return ch.decode("utf-8", "ignore")
+    else:
+        import termios
+        import tty
+
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+            if ch == "\x1b":
+                ch2 = sys.stdin.read(1)
+                if ch2 == "[":
+                    ch3 = sys.stdin.read(1)
+                    return "\x1b[" + ch3
+                return ch + ch2
+            if ch in ("\n", "\r"):
+                return KEY_ENTER
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 def _render_tui_summary(state: TuiState, target_path: Any) -> Text:
@@ -747,12 +768,12 @@ def _run_startup_animation() -> None:
     console.clear()
 
     LOGO_LINES = [
-        r"██████╗ ███████╗███████╗ █████╗  ██████╗████████╗██████╗  ██████╗ ███╗   ██╗",
-        r"██╔══██╗██╔════╝██╔════╝██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗████╗  ██║",
-        r"██████╔╝█████╗  █████╗  ███████║██║        ██║   ██████╔╝██║   ██║██╔██╗ ██║",
-        r"██╔══██╗██╔══╝  ██╔══╝  ██╔══██║██║        ██║   ██╔══██╗██║   ██║██║╚██╗██║",
-        r"██║  ██║███████╗██║     ██║  ██║╚██████╗   ██║   ██║  ██║╚██████╔╝██║ ╚████║",
-        r"╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝",
+        r"  ____       _              _                     ",
+        r" |  _ \ ___ / _| __ _  ___| |_ _ __ ___  _ __   ",
+        r" | |_) / _ \ |_ / _` |/ __| __| '__/ _ \| '_ \  ",
+        r" |  _ <  __/  _| (_| | (__| |_| | | (_) | | | | ",
+        r" |_| \_\___|_|  \__,_|\___|\__|_|  \___/|_| |_| ",
+        r"                                                ",
     ]
 
     subtitle_text = "The Intelligent Code Refactoring Transformer"
@@ -924,11 +945,11 @@ def _run_minimal_loop(ctx: click.Context) -> None:
 
         # Avatar (Simple ASCII)
         avatar = """
-      ▄▄▄
-     █████
-    ███████
-   █████████
-  ███ █ █ ███
+          _
+         (_)
+        /   \\
+       |     |
+        \\___/
         """
 
         info = Table.grid(padding=(0, 1))

@@ -5,19 +5,14 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
-try:
-    import chromadb
-    from chromadb.config import Settings
-    from sentence_transformers import SentenceTransformer
+if TYPE_CHECKING:
+    from refactron.llm.orchestrator import LLMOrchestrator
 
-    CHROMA_AVAILABLE = True
-except ImportError:
-    chromadb = None
-    Settings = None
-    SentenceTransformer = None
-    CHROMA_AVAILABLE = False
+# RAG dependencies are loaded lazily in __init__ to prevent CLI crashes
+# if libraries like PyTorch fail to initialize (common on some Windows environments).
+CHROMA_AVAILABLE = None
 
 from refactron.rag.chunker import CodeChunk
 from refactron.rag.parser import CodeParser
@@ -48,7 +43,7 @@ class RAGIndexer:
         workspace_path: Path,
         embedding_model: str = "all-MiniLM-L6-v2",
         collection_name: str = "code_chunks",
-        llm_client: Optional[GroqClient] = None,
+        llm_integration: Optional["LLMOrchestrator"] = None,
     ):
         """Initialize the RAG indexer.
 
@@ -56,39 +51,71 @@ class RAGIndexer:
             workspace_path: Path to the workspace directory
             embedding_model: Name of the sentence-transformers model
             collection_name: Name of the ChromaDB collection
-            llm_client: Optional LLM client for code summarization
+            llm_integration: Optional LLM Orchestrator for code summarization
         """
-        if not CHROMA_AVAILABLE:
-            raise RuntimeError(
-                "ChromaDB is not available. "
-                "Install with: pip install chromadb sentence-transformers"
-            )
-
         self.workspace_path = Path(workspace_path)
         self.index_path = self.workspace_path / ".rag"
         self.index_path.mkdir(exist_ok=True)
-
-        # Initialize LLM client for summarization
-        # GroqClient is used for type hints and potential init below
-
-        self.llm_client = llm_client
-
-        # Initialize embedding model
-        self.embedding_model_name = embedding_model
-        self.embedding_model = SentenceTransformer(embedding_model)
-
-        # Initialize ChromaDB
-        self.client = chromadb.PersistentClient(
-            path=str(self.index_path / "chroma"), settings=Settings(anonymized_telemetry=False)
-        )
-
-        # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            metadata={"embedding_model": embedding_model, "hnsw:space": "cosine"},
-        )
-
+        self.llm_integration = llm_integration
         self.parser = CodeParser()
+
+        # Lazy load dependencies to avoid crashing the whole CLI
+        # when PyTorch DLL initialization fails (WinError 1114)
+        global CHROMA_AVAILABLE
+        if CHROMA_AVAILABLE is None:
+            try:
+                import chromadb as _chromadb
+                from chromadb.config import Settings as _Settings
+                from sentence_transformers import SentenceTransformer as _SentenceTransformer
+
+                globals()["chromadb"] = _chromadb
+                globals()["Settings"] = _Settings
+                globals()["SentenceTransformer"] = _SentenceTransformer
+                CHROMA_AVAILABLE = True
+            except (ImportError, OSError) as e:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    f"RAG dependencies failed to load, falling back to keyword mode: {e}"
+                )
+                CHROMA_AVAILABLE = False
+
+        if CHROMA_AVAILABLE:
+            self.mode = "vector"
+            self.embedding_model_name = embedding_model
+            try:
+                self.embedding_model = globals()["SentenceTransformer"](embedding_model)
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).error(f"Failed to initialize embedding model: {e}")
+                self.mode = "keyword"
+                self.embedding_model_name = "keyword-fallback"
+
+            if self.mode == "vector":
+                # Initialize ChromaDB
+                self.client = globals()["chromadb"].PersistentClient(
+                    path=str(self.index_path / "chroma"),
+                    settings=globals()["Settings"](anonymized_telemetry=False),
+                )
+
+                # Get or create collection
+                self.collection = self.client.get_or_create_collection(
+                    name=collection_name,
+                    metadata={"embedding_model": embedding_model, "hnsw:space": "cosine"},
+                )
+        else:
+            self.mode = "keyword"
+            self.embedding_model_name = "keyword-fallback"
+            import logging
+
+            logging.getLogger(__name__).info(
+                "Initializing in Keyword Fallback mode (No PyTorch/Chroma needed)."
+            )
+
+        # In keyword mode, we store chunks in a human-readable JSON file
+        if self.mode == "keyword":
+            self.chunk_storage = self.index_path / "keyword_chunks.json"
 
     def index_repository(
         self, repo_path: Optional[Path] = None, summarize: bool = False
@@ -102,11 +129,11 @@ class RAGIndexer:
         Returns:
             Statistics about the indexed content
         """
-        if summarize and not self.llm_client:
-            from refactron.llm.client import GroqClient
+        if summarize and not self.llm_integration:
+            from refactron.llm.orchestrator import LLMOrchestrator
 
             try:
-                self.llm_client = GroqClient()
+                self.llm_integration = LLMOrchestrator()
             except Exception as e:
                 print(f"Warning: Could not initialize AI for summarization: {e}")
                 summarize = False
@@ -177,7 +204,7 @@ class RAGIndexer:
         chunker = CodeChunker(self.parser)
         chunks = chunker.chunk_file(file_path)
 
-        if summarize and self.llm_client:
+        if summarize and self.llm_integration:
             for chunk in chunks:
                 try:
                     summary = self._summarize_chunk(chunk)
@@ -195,31 +222,14 @@ class RAGIndexer:
 
     def _summarize_chunk(self, chunk: CodeChunk) -> Optional[str]:
         """Use AI to generate a brief semantic summary of a code chunk."""
-        if not self.llm_client:
+        if not self.llm_integration:
             return None
 
-        prompt = (
-            "Analyze the following Python code snippet and provide a one-sentence "
-            "summary of its purpose, focusing on what it DOES (e.g. 'Calculates user permissions' "
-            "or 'Handles secure database connections').\n\n"
-            f"Code:\n{chunk.content}"
-        )
-
-        try:
-            summary = self.llm_client.generate(
-                prompt=prompt,
-                system=(
-                    "You are a senior software architect. "
-                    "Provide a concise, semantic summary of code purpose."
-                ),
-                max_tokens=100,
-            )
-            return summary.strip()
-        except Exception:
-            return None
+        # Delegate to the orchestration layer
+        return self.llm_integration.generate_chunk_summary(chunk.content)
 
     def add_chunks(self, chunks: List[CodeChunk]) -> None:
-        """Add code chunks to the vector index.
+        """Add code chunks to the vector index or keyword storage.
 
         Args:
             chunks: List of code chunks to add
@@ -227,7 +237,40 @@ class RAGIndexer:
         if not chunks:
             return
 
-        # Prepare data for ChromaDB
+        if self.mode == "keyword":
+            # Keyword mode: append to JSON storage
+            current_data = []
+            if self.chunk_storage.exists():
+                try:
+                    with open(self.chunk_storage, "r", encoding="utf-8") as f:
+                        current_data = json.load(f)
+                except Exception:
+                    current_data = []
+
+            for chunk in chunks:
+                chunk_dict = {
+                    "content": chunk.content,
+                    "metadata": {
+                        "chunk_type": chunk.chunk_type,
+                        "file_path": chunk.file_path,
+                        "name": chunk.name,
+                        "line_start": chunk.line_range[0],
+                        "line_end": chunk.line_range[1],
+                    },
+                }
+                # Add extra metadata
+                for key, value in chunk.metadata.items():
+                    if value is not None:
+                        chunk_dict["metadata"][key] = value
+
+                current_data.append(chunk_dict)
+
+            # Deduplicate or just overwrite for now (simpler)
+            with open(self.chunk_storage, "w", encoding="utf-8") as f:
+                json.dump(current_data, f, indent=2)
+            return
+
+        # Prepare data for ChromaDB (Vector Mode)
         documents = [chunk.content for chunk in chunks]
         metadatas = []
         for chunk in chunks:

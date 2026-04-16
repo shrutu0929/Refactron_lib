@@ -524,17 +524,7 @@ def suggest(target: Optional[str], line: Optional[int], interactive: bool, apply
         console.print(f"[bold]Line:[/bold] {line}")
 
     # 2. Initialize Components
-    try:
-        retriever = ContextRetriever(workspace_path)
-        console.print("[dim]RAG Index loaded.[/dim]")
-    except Exception:
-        console.print(
-            "[yellow]Warning: RAG index not found. Context retrieval will be limited.[/yellow]"
-        )
-        console.print("[dim]Run 'refactron rag index' to enable full context.[/dim]")
-        retriever = None
-
-    orchestrator = LLMOrchestrator(retriever=retriever)
+    orchestrator = LLMOrchestrator(workspace_path=workspace_path)
 
     # 3. Read Code
     start_line_idx = 0

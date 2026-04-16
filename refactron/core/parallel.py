@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from refactron.core.analysis_result import FileAnalysisError
-from refactron.core.models import FileMetrics
+from refactron.core.models import FileMetrics, AnalysisSkipWarning
 
 logger = logging.getLogger(__name__)
 
@@ -58,20 +58,25 @@ class ParallelProcessor:
     def process_files(
         self,
         files: List[Path],
-        process_func: Callable[[Path], Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]],
+        process_func: Callable[
+            [Path],
+            Tuple[
+                Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]
+            ],
+        ],
         progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> Tuple[List[FileMetrics], List[FileAnalysisError]]:
+    ) -> Tuple[List[FileMetrics], List[FileAnalysisError], List[AnalysisSkipWarning]]:
         """
         Process multiple files in parallel.
 
         Args:
             files: List of file paths to process.
             process_func: Function to process a single file. Should return
-                         (FileMetrics, None) on success or (None, FileAnalysisError) on error.
+                         (FileMetrics, None, skip_warn) on success or (None, FileAnalysisError, None) on error.
             progress_callback: Optional callback for progress updates (completed, total).
 
         Returns:
-            Tuple of (successful results, failed files).
+            Tuple of (successful results, failed files, skip warnings).
         """
         if not self.enabled or len(files) <= 1:
             # Process sequentially if disabled or only one file
@@ -86,20 +91,28 @@ class ParallelProcessor:
     def _process_sequential(
         self,
         files: List[Path],
-        process_func: Callable[[Path], Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]],
+        process_func: Callable[
+            [Path],
+            Tuple[
+                Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]
+            ],
+        ],
         progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> Tuple[List[FileMetrics], List[FileAnalysisError]]:
+    ) -> Tuple[List[FileMetrics], List[FileAnalysisError], List[AnalysisSkipWarning]]:
         """Process files sequentially."""
         results: List[FileMetrics] = []
         errors: List[FileAnalysisError] = []
+        skips: List[AnalysisSkipWarning] = []
 
         for i, file_path in enumerate(files):
             try:
-                result, error = process_func(file_path)
+                result, error, skip = process_func(file_path)
                 if result is not None:
                     results.append(result)
                 if error is not None:
                     errors.append(error)
+                if skip is not None:
+                    skips.append(skip)
             except Exception as e:
                 logger.error(f"Unexpected error processing {file_path}: {e}", exc_info=True)
                 errors.append(
@@ -114,17 +127,23 @@ class ParallelProcessor:
             if progress_callback:
                 progress_callback(i + 1, len(files))
 
-        return results, errors
+        return results, errors, skips
 
     def _process_parallel_threads(
         self,
         files: List[Path],
-        process_func: Callable[[Path], Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]],
+        process_func: Callable[
+            [Path],
+            Tuple[
+                Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]
+            ],
+        ],
         progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> Tuple[List[FileMetrics], List[FileAnalysisError]]:
+    ) -> Tuple[List[FileMetrics], List[FileAnalysisError], List[AnalysisSkipWarning]]:
         """Process files in parallel using threads."""
         results: List[FileMetrics] = []
         errors: List[FileAnalysisError] = []
+        skips: List[AnalysisSkipWarning] = []
         completed = 0
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -139,11 +158,13 @@ class ParallelProcessor:
                 completed += 1
 
                 try:
-                    result, error = future.result()
+                    result, error, skip = future.result()
                     if result is not None:
                         results.append(result)
                     if error is not None:
                         errors.append(error)
+                    if skip is not None:
+                        skips.append(skip)
                 except Exception as e:
                     logger.error(f"Unexpected error processing {file_path}: {e}", exc_info=True)
                     recovery_msg = "Check the file for syntax errors or encoding issues"
@@ -159,14 +180,19 @@ class ParallelProcessor:
                 if progress_callback:
                     progress_callback(completed, len(files))
 
-        return results, errors
+        return results, errors, skips
 
     def _process_parallel_processes(
         self,
         files: List[Path],
-        process_func: Callable[[Path], Tuple[Optional[FileMetrics], Optional[FileAnalysisError]]],
+        process_func: Callable[
+            [Path],
+            Tuple[
+                Optional[FileMetrics], Optional[FileAnalysisError], Optional[AnalysisSkipWarning]
+            ],
+        ],
         progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> Tuple[List[FileMetrics], List[FileAnalysisError]]:
+    ) -> Tuple[List[FileMetrics], List[FileAnalysisError], List[AnalysisSkipWarning]]:
         """
         Process files in parallel using processes.
 
@@ -176,6 +202,7 @@ class ParallelProcessor:
         """
         results: List[FileMetrics] = []
         errors: List[FileAnalysisError] = []
+        skips: List[AnalysisSkipWarning] = []
         completed = 0
 
         try:
@@ -191,11 +218,13 @@ class ParallelProcessor:
                     completed += 1
 
                     try:
-                        result, error = future.result()
+                        result, error, skip = future.result()
                         if result is not None:
                             results.append(result)
                         if error is not None:
                             errors.append(error)
+                        if skip is not None:
+                            skips.append(skip)
                     except Exception as e:
                         logger.error(f"Unexpected error processing {file_path}: {e}", exc_info=True)
                         recovery_msg = "Check the file for syntax errors or encoding issues"
@@ -216,7 +245,7 @@ class ParallelProcessor:
             logger.info("Falling back to sequential processing")
             return self._process_sequential(files, process_func, progress_callback)
 
-        return results, errors
+        return results, errors, skips
 
     def get_config(self) -> Dict[str, Any]:
         """
