@@ -144,6 +144,13 @@ except ImportError:
     pass
 
 try:
+    from refactron.cli.run import run
+
+    main.add_command(run)
+except ImportError:
+    pass
+
+try:
     from refactron.cli.cicd import feedback, generate_cicd, init
 
     main.add_command(generate_cicd)
