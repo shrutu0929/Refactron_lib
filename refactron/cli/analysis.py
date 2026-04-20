@@ -20,6 +20,7 @@ from refactron.cli.ui import (
     _print_status_messages,
     console,
 )
+from refactron.core.pipeline import RefactronPipeline
 from refactron.cli.utils import _load_config, _setup_logging, _validate_path
 from refactron.core.models import CodeIssue, IssueCategory, IssueLevel
 from refactron.core.workspace import WorkspaceManager
@@ -151,8 +152,15 @@ def analyze(
     # Run analysis
     try:
         with console.status("[primary]Analyzing code...[/primary]"):
-            refactron = Refactron(cfg)
-            result = refactron.analyze(target)
+            pipeline = RefactronPipeline(config_path=config)
+            result = pipeline.analyze(target)
+            
+            # Queue issues to ensure the session is fully populated for potential fixes
+            pipeline.queue_issues(result.all_issues)
+            
+            # Persist session
+            pipeline.save_session()
+
     except Exception as e:
         console.print(f"[red]Analysis failed: {e}[/red]")
         console.print("[dim]Tip: Check if all files have valid Python syntax[/dim]")
@@ -172,18 +180,11 @@ def analyze(
 
     # Show metrics if requested
     if show_metrics and cfg.enable_metrics:
-        from refactron.core.metrics import get_metrics_collector
-
-        console.print("\n[bold]Metrics Summary:[/bold]")
-        collector = get_metrics_collector()
-        metrics_summary = collector.get_analysis_summary()
-        console.print(
-            f"  Total analysis time: {metrics_summary.get('total_analysis_time_ms', 0):.2f}ms"
-        )
-        console.print(
-            f"  Average time per file: {metrics_summary.get('average_time_per_file_ms', 0):.2f}ms"
-        )
-        console.print(f"  Success rate: {metrics_summary.get('success_rate_percent', 0):.1f}%")
+        console.print("\n[bold]Pipeline Session Summary:[/bold]")
+        console.print(f"  Session ID: [dim]{pipeline.session.id}[/dim]")
+        console.print(f"  Analysis time: {pipeline.session.analyze_ms:.2f}ms")
+        console.print(f"  Queuing time:  {pipeline.session.queue_ms:.2f}ms")
+        console.print(f"  Issues queued: {len(result.all_issues)}")
 
     # Exit with error code if critical issues found
     if summary["critical"] > 0:
