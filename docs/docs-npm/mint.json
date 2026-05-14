@@ -21,12 +21,6 @@
     "name": "GitHub",
     "url": "https://github.com/Refactron-ai/Refactron_Lib_TS"
   },
-  "tabs": [
-    {
-      "name": "API Reference",
-      "url": "api"
-    }
-  ],
   "anchors": [
     {
       "name": "GitHub",
@@ -46,37 +40,43 @@
   ],
   "navigation": [
     {
-      "group": "Getting Started",
-      "pages": ["introduction", "quickstart", "configuration"]
+      "group": "Get Started",
+      "pages": ["introduction", "quickstart"]
     },
     {
-      "group": "Core Concepts",
+      "group": "Concepts",
       "pages": [
-        "concepts/blast-radius",
-        "concepts/verification",
-        "concepts/sessions",
-        "concepts/temporal-analysis"
+        "concepts/safety-model",
+        "concepts/why-no-llm"
+      ]
+    },
+    {
+      "group": "Transforms",
+      "pages": [
+        "transforms/index",
+        "transforms/callback-to-async-await",
+        "transforms/format-to-fstring",
+        "transforms/class-to-dataclass",
+        "transforms/manual-typecheck-to-hints",
+        "transforms/deprecated-api-requests-to-httpx",
+        "transforms/promise-chains-to-async",
+        "transforms/promise-constructor-to-async",
+        "transforms/var-to-const-let",
+        "transforms/commonjs-to-esm",
+        "transforms/implicit-any"
       ]
     },
     {
       "group": "CLI",
-      "pages": [
-        "cli/overview",
-        "cli/analyze",
-        "cli/issue-browser",
-        "cli/autofix",
-        "cli/verify",
-        "cli/session",
-        "cli/other-commands"
-      ]
+      "pages": ["cli/reference"]
     },
     {
-      "group": "Languages",
-      "pages": ["languages/python", "languages/typescript"]
+      "group": "Configuration",
+      "pages": ["configuration", "configuration/refactronrc"]
     },
     {
-      "group": "API Reference",
-      "pages": ["api/overview", "api/models", "api/adapters", "api/orchestrator"]
+      "group": "Reference",
+      "pages": ["faq"]
     }
   ],
   "footerSocials": {
