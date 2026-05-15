@@ -1,9 +1,12 @@
 """Unit tests for TestSuiteGate (Check 3)."""
 
+import os
+import sys
 from pathlib import Path
 
 import pytest
 
+from refactron.verification.checks import test_gate as test_gate_module
 from refactron.verification.checks.test_gate import TestSuiteGate
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -71,3 +74,61 @@ class TestTestSuiteGate:
         original = file_path.read_text(encoding="utf-8")
         cr = gate.verify(original, original, file_path)
         assert cr.confidence == 0.9
+
+
+class TestPytestInvocation:
+    """The pytest subprocess must use the host interpreter and project root."""
+
+    def _capture_run(self, monkeypatch):
+        """Patch subprocess.run to capture its arguments without running pytest."""
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            captured["cwd"] = kwargs.get("cwd")
+            captured["env"] = kwargs.get("env")
+
+            class _Completed:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+
+            return _Completed()
+
+        monkeypatch.setattr(test_gate_module.subprocess, "run", fake_run)
+        return captured
+
+    def test_uses_host_interpreter(self, monkeypatch):
+        """pytest must run via sys.executable, not a hard-coded python3."""
+        captured = self._capture_run(monkeypatch)
+        gate = TestSuiteGate(project_root=FIXTURES_DIR)
+        file_path = FIXTURES_DIR / "fixture_test_break.py"
+        original = file_path.read_text(encoding="utf-8")
+
+        gate.verify(original, original, file_path)
+
+        assert captured["cmd"][0] == sys.executable
+        assert captured["cmd"][1:4] == ["-m", "pytest", "-x"]
+
+    def test_cwd_is_resolved_project_root(self, monkeypatch):
+        """pytest must run from the resolved project root, not file_path.parent."""
+        captured = self._capture_run(monkeypatch)
+        gate = TestSuiteGate(project_root=FIXTURES_DIR)
+        file_path = FIXTURES_DIR / "fixture_test_break.py"
+        original = file_path.read_text(encoding="utf-8")
+
+        gate.verify(original, original, file_path)
+
+        assert captured["cwd"] == str(FIXTURES_DIR.resolve())
+
+    def test_project_root_added_to_pythonpath(self, monkeypatch):
+        """The project root must be present on PYTHONPATH for the subprocess."""
+        captured = self._capture_run(monkeypatch)
+        gate = TestSuiteGate(project_root=FIXTURES_DIR)
+        file_path = FIXTURES_DIR / "fixture_test_break.py"
+        original = file_path.read_text(encoding="utf-8")
+
+        gate.verify(original, original, file_path)
+
+        pythonpath = captured["env"]["PYTHONPATH"].split(os.pathsep)
+        assert str(FIXTURES_DIR.resolve()) in pythonpath

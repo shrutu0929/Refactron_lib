@@ -4,6 +4,7 @@ import ast
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -56,16 +57,30 @@ class TestSuiteGate(BaseCheck):
             # Delete .pyc cache
             self._clear_pycache(file_path)
 
-            # Run pytest
-            cmd = ["python3", "-m", "pytest", "-x", "-q"]
+            # Run pytest from the project root with the host interpreter so
+            # the repo's pyproject.toml / pytest.ini / conftest.py are picked
+            # up and the same venv as the host process is used.
+            run_cwd = (self.project_root or file_path.parent).resolve()
+
+            # Make the project root importable for edge cases where the layout
+            # relies on PYTHONPATH rather than an installed package.
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            existing_pythonpath = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = (
+                os.pathsep.join([str(run_cwd), existing_pythonpath])
+                if existing_pythonpath
+                else str(run_cwd)
+            )
+
+            cmd = [sys.executable, "-m", "pytest", "-x", "-q"]
             cmd += [str(f) for f in test_files]
             result = subprocess.run(
                 cmd,
                 timeout=45,
                 capture_output=True,
                 text=True,
-                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-                cwd=str(file_path.parent),
+                env=env,
+                cwd=str(run_cwd),
             )
 
             elapsed = int((time.monotonic() - start) * 1000)
@@ -115,11 +130,11 @@ class TestSuiteGate(BaseCheck):
         if self._test_file_cache is None:
             self._test_file_cache = {}
             self._all_test_files = []
-            
+
             test_dirs = [d for d in [search_root / "tests", search_root / "test"] if d.is_dir()]
             search_dirs = test_dirs if test_dirs else [search_root]
             excluded_dirs = {".git", ".rag", "__pycache__", "venv", ".venv", "env", "node_modules"}
-            
+
             for root_dir in search_dirs:
                 for py_file in root_dir.rglob("*.py"):
                     if any(excluded in py_file.parts for excluded in excluded_dirs):
@@ -141,7 +156,7 @@ class TestSuiteGate(BaseCheck):
                     test_files.append(py_file)
             except Exception:
                 continue
-                
+
         self._test_file_cache[module_name] = test_files
         return test_files
 
