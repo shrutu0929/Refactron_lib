@@ -12,6 +12,26 @@ from typing import Dict, List, Optional, Tuple
 from refactron.autofix.models import FixResult, FixRiskLevel
 from refactron.core.models import CodeIssue
 
+# Directory markers used to locate the project/VCS root when no explicit
+# root is supplied to fix_file().
+_PROJECT_ROOT_MARKERS = (".git", ".hg", ".svn", "pyproject.toml", "setup.py", "setup.cfg")
+
+
+def _discover_project_root(file_path: Path) -> Path:
+    """Walk up from ``file_path`` to find the project/VCS root.
+
+    Returns the nearest ancestor directory containing a VCS directory
+    (``.git``/``.hg``/``.svn``) or a project marker
+    (``pyproject.toml``/``setup.py``/``setup.cfg``).  Falls back to the
+    file's own directory when no marker is found.
+    """
+    start = file_path.parent if file_path.suffix else file_path
+    for directory in (start, *start.parents):
+        for marker in _PROJECT_ROOT_MARKERS:
+            if (directory / marker).exists():
+                return directory
+    return start
+
 
 class AutoFixEngine:
     """
@@ -146,6 +166,7 @@ class AutoFixEngine:
         issues: List[CodeIssue],
         dry_run: bool = True,
         verify: bool = False,
+        project_root: Optional[Path] = None,
     ) -> Tuple[str, Optional[str]]:
         """
         Apply all fixable issues to a file.
@@ -163,6 +184,13 @@ class AutoFixEngine:
             issues: List of CodeIssue objects to attempt to fix.
             dry_run: When True, no bytes are written to disk.
             verify: When True, run VerificationEngine before writing.
+            project_root: Root directory used by verification (e.g. for test
+                discovery).  When None, the root is discovered by walking up
+                from ``file_path`` to the nearest VCS/project marker, falling
+                back to the file's own directory.  Callers that already know
+                the project root (e.g. RefactronPipeline) should pass it
+                explicitly so monorepo/nested layouts verify against the
+                correct root.
 
         Returns:
             Tuple of (fixed_code, diff).  diff is None/empty when no changes
@@ -189,7 +217,8 @@ class AutoFixEngine:
             from refactron.verification import VerificationEngine
 
             logger = logging.getLogger(__name__)
-            ve = VerificationEngine(project_root=file_path.parent)
+            root = project_root or _discover_project_root(file_path)
+            ve = VerificationEngine(project_root=root)
             vr = ve.verify(code, current_code, file_path)
             if not vr.safe_to_apply:
                 logger.warning("Verification blocked %s: %s", file_path, vr.blocking_reason)
