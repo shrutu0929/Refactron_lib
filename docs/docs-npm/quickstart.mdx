@@ -1,0 +1,84 @@
+---
+title: Quickstart
+description: Install Refactron and run your first verified refactor in 60 seconds.
+---
+
+## 1 — Install
+
+```bash
+npm install -g refactron@0.2.0
+```
+
+Or via PyPI (Python wrapper around the npm package — Node.js 18+ still required):
+
+```bash
+pip install refactron
+```
+
+Confirm:
+
+```bash
+refactron --version       # → 0.2.0
+```
+
+---
+
+## 2 — Authenticate (one-time)
+
+```bash
+refactron login
+```
+
+Opens a browser-based OAuth device flow. In CI, set `REFACTRON_TOKEN` instead.
+
+---
+
+## 3 — Analyze
+
+From your project root:
+
+```bash
+refactron analyze .
+```
+
+Output (sample):
+
+```text
+src/api/users.py
+  ⚠ format_to_fstring   line 14   "Hello, %s" % name
+  ⚠ format_to_fstring   line 22   "User {} not found".format(uid)
+
+Summary
+  Files affected   1
+  By transform     format_to_fstring: 2
+  By severity      0 critical · 2 high · 0 medium · 0 low
+  Fixable          2 / 2
+```
+
+---
+
+## 4 — Preview the refactor
+
+```bash
+refactron run --dry-run .
+```
+
+Shows the unified diff per file. Nothing has been written.
+
+---
+
+## 5 — Apply with verification
+
+```bash
+refactron run --apply .
+```
+
+The 3 gates run in order: syntax → imports → tests. If any gate fails, your tree is **untouched** — there is nothing to roll back. If all gates pass, the refactor is committed atomically (every file or none).
+
+---
+
+## Next steps
+
+- Scope a refactor to specific transforms: see the [transform catalog](/transforms)
+- Configure thresholds + exclusions: see [`.refactronrc.json`](/configuration/refactronrc)
+- Generate documentation for the refactor: `refactron document --apply` (requires an LLM provider — see [Configuration](/configuration/refactronrc#documentation))

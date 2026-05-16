@@ -105,8 +105,10 @@ except Exception:
 
 try:
     from refactron.cli.analysis import analyze, metrics, report, serve_metrics, suggest
+    from refactron.cli.verify import verify
 
     main.add_command(analyze)
+    main.add_command(verify)
     main.add_command(report)
     main.add_command(metrics)
     main.add_command(serve_metrics)
