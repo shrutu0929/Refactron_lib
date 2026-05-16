@@ -21,7 +21,7 @@ class BaseCheck(ABC):
 
 
 class VerificationEngine:
-    """Orchestrates verification checks in a short-circuit pipeline."""
+    """Orchestrates verification checks, short-circuiting by default."""
 
     def __init__(
         self,
@@ -39,12 +39,29 @@ class VerificationEngine:
 
             self.checks = [
                 SyntaxVerifier(),
-                ImportIntegrityVerifier(),
+                ImportIntegrityVerifier(project_root=project_root),
                 TestSuiteGate(project_root=project_root),
             ]
 
-    def verify(self, original: str, transformed: str, file_path: Path) -> VerificationResult:
-        """Run all checks in order, short-circuiting on first failure."""
+    def verify(
+        self,
+        original: str,
+        transformed: str,
+        file_path: Path,
+        short_circuit: bool = True,
+    ) -> VerificationResult:
+        """Run the verification checks in order and aggregate the results.
+
+        Args:
+            original: Source code before the transform.
+            transformed: Source code after the transform.
+            file_path: Path of the file within the project.
+            short_circuit: When True (default), stop after the first failing
+                check and record the rest in ``skipped_checks`` — fastest, but
+                hides stacked problems. When False, run every check so the
+                caller sees all failure categories in a single run; nothing is
+                skipped. ``blocking_reason`` is always the first failure.
+        """
         start = time.monotonic()
         check_results: List[CheckResult] = []
         checks_run: List[str] = []
@@ -77,12 +94,14 @@ class VerificationEngine:
                 checks_failed.append(check.name)
                 if blocking_reason is None:
                     blocking_reason = cr.blocking_reason
-                # Short-circuit: skip remaining checks
-                for remaining in self.checks[i + 1 :]:
-                    skipped_checks.append(
-                        (remaining.name, f"Short-circuited after {check.name} failed")
-                    )
-                break
+                if short_circuit:
+                    # Skip remaining checks and stop the pipeline.
+                    for remaining in self.checks[i + 1 :]:
+                        skipped_checks.append(
+                            (remaining.name, f"Short-circuited after {check.name} failed")
+                        )
+                    break
+                # short_circuit=False: keep going so every failure surfaces.
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
         confidence = self._compute_confidence(check_results)
