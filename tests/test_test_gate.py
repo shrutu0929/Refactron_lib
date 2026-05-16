@@ -76,6 +76,71 @@ class TestTestSuiteGate:
         assert cr.confidence == 0.9
 
 
+class TestPackageImportMatching:
+    """Relevance matching must handle qualified package imports, not just stems."""
+
+    def _layout(self, tmp_path: Path, test_import: str):
+        """Create mypkg/submodule/foo.py and tests/test_foo.py importing it."""
+        pkg = tmp_path / "mypkg" / "submodule"
+        pkg.mkdir(parents=True)
+        (tmp_path / "mypkg" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        foo = pkg / "foo.py"
+        foo.write_text("def f():\n    return 1\n", encoding="utf-8")
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        test_file = tests / "test_foo.py"
+        test_file.write_text(
+            f"{test_import}\n\n\ndef test_it():\n    assert True\n", encoding="utf-8"
+        )
+        return foo, test_file
+
+    def test_qualified_from_import_matches(self, tmp_path):
+        """from mypkg.submodule import foo  ->  matches mypkg/submodule/foo.py."""
+        foo, test_file = self._layout(tmp_path, "from mypkg.submodule import foo")
+        gate = TestSuiteGate(project_root=tmp_path)
+        assert test_file in gate._find_relevant_tests(foo)
+
+    def test_dotted_import_matches(self, tmp_path):
+        """import mypkg.submodule.foo  ->  matches the file under verification."""
+        foo, test_file = self._layout(tmp_path, "import mypkg.submodule.foo")
+        gate = TestSuiteGate(project_root=tmp_path)
+        assert test_file in gate._find_relevant_tests(foo)
+
+    def test_unrelated_import_does_not_match(self, tmp_path):
+        foo, _ = self._layout(tmp_path, "import os")
+        gate = TestSuiteGate(project_root=tmp_path)
+        assert gate._find_relevant_tests(foo) == []
+
+    def test_relative_import_matches(self, tmp_path):
+        """from . import foo  in a test inside the package is attributed."""
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        foo = pkg / "foo.py"
+        foo.write_text("def f():\n    return 1\n", encoding="utf-8")
+        test_file = pkg / "test_foo.py"
+        test_file.write_text(
+            "from . import foo\n\n\ndef test_it():\n    assert foo.f() == 1\n",
+            encoding="utf-8",
+        )
+        gate = TestSuiteGate(project_root=tmp_path)
+        assert test_file in gate._find_relevant_tests(foo)
+
+    def test_no_tests_yields_reduced_confidence(self, tmp_path):
+        """An uncovered change is passed but with reduced (not high) confidence."""
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        foo = pkg / "foo.py"
+        foo.write_text("X = 1\n", encoding="utf-8")
+        gate = TestSuiteGate(project_root=tmp_path)
+        cr = gate.verify("X = 1\n", "X = 1\n", foo)
+        assert cr.passed is True
+        assert cr.confidence == 0.6
+        assert "not covered" in cr.details["note"]
+
+
 class TestPytestInvocation:
     """The pytest subprocess must use the host interpreter and project root."""
 
